@@ -18,7 +18,10 @@ export interface KumtluangMatrixData {
 /**
  * Builds a donor-by-category matrix specifically for Kumtluang Bawm / multi-category campaigns.
  */
-export const buildKumtluangMatrix = (transactions: Transaction[]): KumtluangMatrixData => {
+export const buildKumtluangMatrix = (
+  transactions: Transaction[],
+  sortOrder?: 'date-desc' | 'name-asc' | 'name-desc' | 'amount-desc'
+): KumtluangMatrixData => {
   const categorySet = new Set<string>();
   const donorMap = new Map<string, { [cat: string]: number }>();
 
@@ -70,6 +73,15 @@ export const buildKumtluangMatrix = (transactions: Transaction[]): KumtluangMatr
     });
   });
 
+  // Apply sorting to matrix rows
+  if (sortOrder === 'name-asc') {
+    rows.sort((a, b) => a.donorName.localeCompare(b.donorName));
+  } else if (sortOrder === 'name-desc') {
+    rows.sort((a, b) => b.donorName.localeCompare(a.donorName));
+  } else if (sortOrder === 'amount-desc') {
+    rows.sort((a, b) => b.total - a.total);
+  }
+
   return {
     categories,
     rows,
@@ -82,21 +94,26 @@ export const exportKumtluangMatrixToCSV = (
   transactions: Transaction[], 
   title: string = 'Kumtluang_Bawm_Category_Report',
   campaignName?: string,
-  dateRangeText?: string
+  dateRangeText?: string,
+  creatorInfo?: { name: string; orgName: string; phone: string },
+  sortOrder?: 'date-desc' | 'name-asc' | 'name-desc' | 'amount-desc'
 ) => {
-  const matrix = buildKumtluangMatrix(transactions);
+  const matrix = buildKumtluangMatrix(transactions, sortOrder);
 
-  // Meta information headers with strict DD/MM/YYYY formatting
+  // Meta information headers with strict DD/MM/YYYY formatting and audit trail
   const metaRows = [
     `"RONPAY TRANSACTION & CATEGORY MATRIX REPORT"`,
     `"Campaign / QR Name:","${(campaignName || 'All Campaigns').replace(/"/g, '""')}"`,
+    creatorInfo ? `"Creator / Organization:","${`${creatorInfo.name} (${creatorInfo.orgName || 'N/A'}, Phone: ${creatorInfo.phone || 'N/A'})`.replace(/"/g, '""')}"` : `""`,
     `"Date Range / Hun Chhung:","${(dateRangeText || 'All Dates').replace(/"/g, '""')}"`,
-    `"Exported Date:","${formatDateDDMMYYYY(new Date())}"`,
+    `"Total Donors:","${matrix.rows.length}"`,
+    `"Grand Total Collection:","Rs. ${matrix.grandTotal.toLocaleString('en-IN')}"`,
+    `"Exported Date & Time:","${formatDateTimeDDMMYYYY(new Date().toISOString())}"`,
     `""`,
-  ];
+  ].filter(Boolean);
 
   // Headers: Hming, Cat1, Cat2, ..., Total
-  const headers = ['Hming', ...matrix.categories, 'Total'];
+  const headers = ['Hming (Donor)', ...matrix.categories, 'Total (INR)'];
 
   const dataRows = matrix.rows.map(r => {
     return [
@@ -107,7 +124,7 @@ export const exportKumtluangMatrixToCSV = (
   });
 
   const totalRow = [
-    '"Total"',
+    '"TOTAL"',
     ...matrix.categories.map(c => (matrix.columnTotals[c] || 0).toString()),
     matrix.grandTotal.toString(),
   ];
@@ -123,7 +140,96 @@ export const exportKumtluangMatrixToCSV = (
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', `${title}_${formatDateDDMMYYYY(new Date()).replace(/\//g, '-')}.csv`);
+  const sanitizedTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
+  link.setAttribute('download', `${sanitizedTitle}_${formatDateDDMMYYYY(new Date()).replace(/\//g, '-')}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+export const exportDetailedTransactionsCSV = (
+  transactions: Transaction[],
+  title: string = 'RonPay_Itemized_Transactions',
+  campaignName?: string,
+  dateRangeText?: string,
+  creatorInfo?: { name: string; orgName: string; phone: string }
+) => {
+  const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+
+  // Meta info header with DD/MM/YYYY and audit details
+  const metaRows = [
+    `"RONPAY ITEMIZED TRANSACTION REPORT (RECORD KEEPING)"`,
+    `"Campaign / QR Name:","${(campaignName || 'All Campaigns').replace(/"/g, '""')}"`,
+    creatorInfo ? `"Creator / Organization:","${`${creatorInfo.name} (${creatorInfo.orgName || 'N/A'}, Phone: ${creatorInfo.phone || 'N/A'})`.replace(/"/g, '""')}"` : `""`,
+    `"Date Range / Hun Chhung:","${(dateRangeText || 'All Dates').replace(/"/g, '""')}"`,
+    `"Total Transactions:","${transactions.length}"`,
+    `"Total Collection Amount:","Rs. ${totalAmount.toLocaleString('en-IN')}"`,
+    `"Exported Date & Time:","${formatDateTimeDDMMYYYY(new Date().toISOString())}"`,
+    `""`,
+  ].filter(Boolean);
+
+  // Full headers including subcategory details
+  const headers = [
+    'Transaction ID',
+    'Date & Time',
+    'Category / Bawm',
+    'Campaign Title',
+    'Donor Name',
+    'Amount (INR)',
+    'Payment Mode',
+    'Status',
+    'Period / Subcategory Breakdown',
+    'Reference / Tx Hash'
+  ];
+
+  const rows = transactions.map(t => {
+    let breakdownStr = t.periodLabel || '';
+    if (t.subCategoryBreakdown && Object.keys(t.subCategoryBreakdown).length > 0) {
+      const parts = Object.entries(t.subCategoryBreakdown).map(([k, v]) => `${k}: Rs.${v}`);
+      breakdownStr = breakdownStr ? `${breakdownStr} | ${parts.join('; ')}` : parts.join('; ');
+    }
+
+    return [
+      `"${t.id}"`,
+      `"${formatDateTimeDDMMYYYY(t.timestamp)}"`,
+      `"${t.category.toUpperCase()}"`,
+      `"${(t.campaignTitle || '').replace(/"/g, '""')}"`,
+      `"${(t.isAnonymous ? 'Anonymous' : (t.donorName || '')).replace(/"/g, '""')}"`,
+      t.amount.toFixed(2),
+      `"${t.paymentMethod.toUpperCase()}"`,
+      `"${t.status.toUpperCase()}"`,
+      `"${breakdownStr.replace(/"/g, '""')}"`,
+      `"${t.txHash || ''}"`
+    ];
+  });
+
+  const totalRow = [
+    '"TOTAL"',
+    '""',
+    '""',
+    '""',
+    `"${transactions.length} Transactions"`,
+    totalAmount.toFixed(2),
+    '""',
+    '""',
+    '""',
+    '""'
+  ];
+
+  const csvContent = [
+    ...metaRows,
+    headers.join(','),
+    ...rows.map(row => row.join(',')),
+    totalRow.join(',')
+  ].join('\n');
+
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  const sanitizedTitle = title.replace(/[^a-zA-Z0-9_-]/g, '_');
+  link.setAttribute('download', `${sanitizedTitle}_${formatDateDDMMYYYY(new Date()).replace(/\//g, '-')}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -135,64 +241,16 @@ export const exportTransactionsToCSV = (
   title: string = 'RonPay_Transactions', 
   isKumtluang: boolean = false,
   campaignName?: string,
-  dateRangeText?: string
+  dateRangeText?: string,
+  creatorInfo?: { name: string; orgName: string; phone: string },
+  sortOrder?: 'date-desc' | 'name-asc' | 'name-desc' | 'amount-desc'
 ) => {
   if (isKumtluang) {
-    exportKumtluangMatrixToCSV(transactions, title, campaignName, dateRangeText);
+    exportKumtluangMatrixToCSV(transactions, title, campaignName, dateRangeText, creatorInfo, sortOrder);
     return;
   }
 
-  // Meta info header with DD/MM/YYYY
-  const metaRows = [
-    `"RONPAY TRANSACTION REPORT"`,
-    `"Campaign / QR Name:","${(campaignName || 'All Campaigns').replace(/"/g, '""')}"`,
-    `"Date Range / Hun Chhung:","${(dateRangeText || 'All Dates').replace(/"/g, '""')}"`,
-    `"Exported Date:","${formatDateDDMMYYYY(new Date())}"`,
-    `""`,
-  ];
-
-  // Streamlined headers for Ralna/Khawlsak/Rikrum (item 9: no redundant empty columns)
-  const headers = [
-    'Transaction ID',
-    'Date & Time',
-    'Category / Bawm',
-    'Campaign Title',
-    'Donor Name',
-    'Amount (INR)',
-    'Payment Mode',
-    'Status',
-    'Reference Hash'
-  ];
-
-  const rows = transactions.map(t => {
-    return [
-      t.id,
-      formatDateTimeDDMMYYYY(t.timestamp),
-      t.category.toUpperCase(),
-      `"${(t.campaignTitle || '').replace(/"/g, '""')}"`,
-      `"${(t.isAnonymous ? 'Anonymous' : (t.donorName || '')).replace(/"/g, '""')}"`,
-      t.amount.toFixed(2),
-      t.paymentMethod.toUpperCase(),
-      t.status.toUpperCase(),
-      t.txHash
-    ];
-  });
-
-  const csvContent = [
-    ...metaRows,
-    headers.join(','),
-    ...rows.map(row => row.join(','))
-  ].join('\n');
-
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', `${title}_${formatDateDDMMYYYY(new Date()).replace(/\//g, '-')}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  exportDetailedTransactionsCSV(transactions, title, campaignName, dateRangeText, creatorInfo);
 };
 
 export const printTransactionsPDF = (
@@ -201,7 +259,8 @@ export const printTransactionsPDF = (
   isKumtluang: boolean = false,
   campaignName: string = 'All Campaigns',
   dateRangeText: string = 'All Time',
-  imageUrl?: string
+  imageUrl?: string,
+  sortOrder?: 'date-desc' | 'name-asc' | 'name-desc' | 'amount-desc'
 ) => {
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
 
@@ -213,7 +272,7 @@ export const printTransactionsPDF = (
 
   // If Kumtluang Bawm, format matrix table: Hming | Cat 1 | Cat 2 | ... | Total
   if (isKumtluang) {
-    const matrix = buildKumtluangMatrix(transactions);
+    const matrix = buildKumtluangMatrix(transactions, sortOrder);
     const matrixHeaderThs = matrix.categories.map(c => `<th style="text-align: right; padding: 8px 10px;">${c}</th>`).join('');
     
     const matrixRowsHtml = matrix.rows.map((r, idx) => `

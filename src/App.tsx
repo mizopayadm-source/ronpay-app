@@ -11,7 +11,8 @@ import {
   Transaction, 
   CreatorProfile, 
   BillService,
-  SystemPricingConfig
+  SystemPricingConfig,
+  AnnouncementBanner
 } from './types';
 import { 
   getStoredCampaigns, 
@@ -24,7 +25,12 @@ import {
   saveStoredCreatorsList,
   getStoredPricingConfig,
   saveStoredPricingConfig,
-  syncWithGoogleScript
+  getStoredUserPaidTxIds,
+  recordUserPaidTxId,
+  isUserPaidTransaction,
+  syncWithGoogleScript,
+  getStoredAnnouncement,
+  saveStoredAnnouncement
 } from './utils/storage';
 import { INITIAL_CAMPAIGNS, INITIAL_TRANSACTIONS, BAWM_CONFIG } from './data/initialData';
 import { Header } from './components/Header';
@@ -49,6 +55,8 @@ import { AdminApprovalModal } from './components/AdminApprovalModal';
 import { PeknaSulhnuModal } from './components/PeknaSulhnuModal';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
 import { QRShareModal } from './components/QRShareModal';
+import { OfflineStatusBanner } from './components/OfflineStatusBanner';
+import { BiometricAuthModal } from './components/BiometricAuthModal';
 import { Language } from './utils/translations';
 import { Home, QrCode, FileText, User, Zap } from 'lucide-react';
 
@@ -61,9 +69,11 @@ export default function App() {
   // Data State
   const [campaigns, setCampaigns] = useState<Campaign[]>(getStoredCampaigns);
   const [transactions, setTransactions] = useState<Transaction[]>(getStoredTransactions);
+  const [userPaidTxIds, setUserPaidTxIds] = useState<string[]>(getStoredUserPaidTxIds);
   const [creatorProfile, setCreatorProfile] = useState<CreatorProfile>(getStoredCreatorProfile);
   const [creatorsList, setCreatorsList] = useState<CreatorProfile[]>(getStoredCreatorsList);
   const [pricingConfig, setPricingConfig] = useState<SystemPricingConfig>(getStoredPricingConfig);
+  const [announcement, setAnnouncement] = useState<AnnouncementBanner>(getStoredAnnouncement);
 
   // Modals & Overlays
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
@@ -108,6 +118,56 @@ export default function App() {
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [shareCampaign, setShareCampaign] = useState<Campaign | null>(null);
+
+  // Biometric Security Layer State
+  const [biometricEnabled, setBiometricEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('ronpay_biometric_enabled');
+    return saved !== null ? saved === 'true' : true; // Enabled by default
+  });
+  const [isBiometricPromptOpen, setIsBiometricPromptOpen] = useState<boolean>(false);
+  const [pendingSecureTarget, setPendingSecureTarget] = useState<'sulhnu' | 'profile' | null>(null);
+  const [isBiometricSessionUnlocked, setIsBiometricSessionUnlocked] = useState<boolean>(false);
+
+  const handleOpenSecureHistory = () => {
+    if (biometricEnabled && !isBiometricSessionUnlocked) {
+      setPendingSecureTarget('sulhnu');
+      setIsBiometricPromptOpen(true);
+    } else {
+      setIsPeknaSulhnuOpen(true);
+    }
+  };
+
+  const handleOpenSecureProfile = () => {
+    if (biometricEnabled && !isBiometricSessionUnlocked) {
+      setPendingSecureTarget('profile');
+      setIsBiometricPromptOpen(true);
+    } else {
+      setIsProfileModalOpen(true);
+    }
+  };
+
+  const handleBiometricSuccess = () => {
+    setIsBiometricSessionUnlocked(true);
+    setIsBiometricPromptOpen(false);
+    if (pendingSecureTarget === 'sulhnu') {
+      setIsPeknaSulhnuOpen(true);
+    } else if (pendingSecureTarget === 'profile') {
+      setIsProfileModalOpen(true);
+    }
+    setPendingSecureTarget(null);
+  };
+
+  const handleToggleBiometric = () => {
+    const nextVal = !biometricEnabled;
+    setBiometricEnabled(nextVal);
+    localStorage.setItem('ronpay_biometric_enabled', String(nextVal));
+  };
+
+  const handleLockSessionNow = () => {
+    setIsBiometricSessionUnlocked(false);
+    setIsPeknaSulhnuOpen(false);
+    setIsProfileModalOpen(false);
+  };
 
   const handleToggleLanguage = (lang: Language) => {
     setLanguage(lang);
@@ -362,6 +422,8 @@ export default function App() {
 
   // Payment completed
   const handlePaymentSuccess = (transaction: Transaction) => {
+    recordUserPaidTxId(transaction.id);
+    setUserPaidTxIds(prev => [transaction.id, ...prev]);
     setTransactions(prev => {
       const updated = [transaction, ...prev];
       saveStoredTransactions(updated);
@@ -380,6 +442,8 @@ export default function App() {
 
   // Cash pending submitted
   const handleCashPending = (transaction: Transaction) => {
+    recordUserPaidTxId(transaction.id);
+    setUserPaidTxIds(prev => [transaction.id, ...prev]);
     setTransactions(prev => {
       const updated = [transaction, ...prev];
       saveStoredTransactions(updated);
@@ -413,7 +477,13 @@ export default function App() {
       timestamp: new Date().toISOString(),
       txHash: 'BILL' + Math.random().toString(36).substring(2, 9).toUpperCase(),
     };
-    setTransactions(prev => [billTxn, ...prev]);
+    recordUserPaidTxId(billTxn.id);
+    setUserPaidTxIds(prev => [billTxn.id, ...prev]);
+    setTransactions(prev => {
+      const updated = [billTxn, ...prev];
+      saveStoredTransactions(updated);
+      return updated;
+    });
   };
 
   // Reset Demo Data
@@ -451,12 +521,19 @@ export default function App() {
           onOpenNotifications={() => alert('🔔 RonPay Notifications:\n• Pi Lalhmingliani Ralna campaign is live.\n• BCM Ebenezer Zobawk collection active.')}
           language={language}
           onToggleLanguage={handleToggleLanguage}
-          onOpenHistory={() => setIsPeknaSulhnuOpen(true)}
+          onOpenHistory={handleOpenSecureHistory}
           onOpenAdmin={() => setIsAdminDashboardOpen(true)}
         />
 
         {/* Scrollable Main Body */}
-        <main className="p-3.5 sm:p-5 flex-1 overflow-y-auto no-scrollbar relative">
+        <main className="p-3.5 sm:p-5 flex-1 overflow-y-auto no-scrollbar relative space-y-3.5">
+          {/* Offline Status Check & Notification Banner */}
+          <OfflineStatusBanner
+            language={language}
+            campaignsCount={campaigns.length}
+            onRefreshCache={() => setCampaigns(getStoredCampaigns())}
+          />
+
           {currentScreen === 'screen-home' && (
             <HomeScreen
               onStartScanner={handleStartScanner}
@@ -466,13 +543,14 @@ export default function App() {
               campaigns={campaigns}
               transactions={transactions}
               creatorProfile={creatorProfile}
+              announcement={announcement}
               onOpenReports={() => navigateTo('screen-export-reports')}
               onShowBalance={() => alert('💰 RonPay Wallet Balance: ₹12,450.00\nLinked Bank: State Bank of India (Aizawl Main Branch)')}
               onShowBankTransfer={() => alert('🏦 Bank Settlement Transfer:\nInstant IMPS / NEFT settlement active.')}
               onOpenPhonePePortal={() => setIsPhonePeModalOpen(true)}
               onSelectCampaign={handleSelectCampaignFromExplorer}
               language={language}
-              onOpenHistory={() => setIsPeknaSulhnuOpen(true)}
+              onOpenHistory={handleOpenSecureHistory}
               onShareCampaign={handleShareCampaign}
             />
           )}
@@ -481,11 +559,15 @@ export default function App() {
             <BawmExplorerScreen
               category={currentCategory}
               campaigns={campaigns}
+              transactions={transactions}
+              creatorProfile={creatorProfile}
               onBack={() => navigateTo('screen-home')}
               onSelectCampaign={handleSelectCampaignFromExplorer}
               onStartScanner={handleStartScanner}
               onPreviewImage={handleOpenImagePreview}
               onShareCampaign={handleShareCampaign}
+              onCategoryChange={(cat) => setCurrentCategory(cat)}
+              language={language}
             />
           )}
 
@@ -521,6 +603,7 @@ export default function App() {
               onGenerateQR={handleGenerateQR}
               onLogout={handleCreatorLogout}
               campaigns={campaigns}
+              transactions={transactions}
               onUpdateCampaign={handleUpdateCampaign}
               onSelectCampaign={handleSelectCampaignFromExplorer}
             />
@@ -590,7 +673,7 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => setIsProfileModalOpen(true)}
+            onClick={handleOpenSecureProfile}
             className="flex flex-col items-center hover:text-indigo-600 transition cursor-pointer"
           >
             <User className="w-4 h-4" />
@@ -670,6 +753,9 @@ export default function App() {
           onOpenPhonePePortal={() => setIsPhonePeModalOpen(true)}
           onLogout={handleCreatorLogout}
           onOpenAdmin={() => setIsAdminDashboardOpen(true)}
+          biometricEnabled={biometricEnabled}
+          onToggleBiometric={handleToggleBiometric}
+          onLockNow={handleLockSessionNow}
           onLoginClick={() => {
             setIsProfileModalOpen(false);
             navigateTo('screen-creator-reg');
@@ -693,8 +779,19 @@ export default function App() {
         <PeknaSulhnuModal
           isOpen={isPeknaSulhnuOpen}
           onClose={() => setIsPeknaSulhnuOpen(false)}
-          transactions={transactions}
+          transactions={transactions.filter(t => isUserPaidTransaction(t, userPaidTxIds, creatorProfile))}
           campaigns={campaigns}
+        />
+
+        {/* Biometric Security Authentication Modal */}
+        <BiometricAuthModal
+          isOpen={isBiometricPromptOpen}
+          target={pendingSecureTarget || 'general'}
+          onClose={() => {
+            setIsBiometricPromptOpen(false);
+            setPendingSecureTarget(null);
+          }}
+          onSuccess={handleBiometricSuccess}
         />
 
         {/* Secure Admin Dashboard Modal */}

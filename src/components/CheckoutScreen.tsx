@@ -72,6 +72,8 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
 
   const config = BAWM_CONFIG[category];
   const isExpired = isCampaignExpired(campaign?.validityDate, campaign?.status);
+  const isPendingApproval = campaign?.status === 'pending_approval';
+  const isRejected = campaign?.status === 'rejected';
 
   // Derive human-readable period label
   const periodLabel = periodType === 'monthly'
@@ -154,6 +156,14 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
 
   const handleProcessPayment = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPendingApproval) {
+      alert('⚠️ He Bawm / QR Code hi Admin-in a la approve loh avangin sum thawh theih a la ni rih lo. Admin approve a nih veleh a active nghal ang.');
+      return;
+    }
+    if (isRejected) {
+      alert('⛔ He Campaign hi Admin-in a hnawl (rejected) a ni a, sum thawh theih a ni lo.');
+      return;
+    }
     if (isExpired) {
       alert('⛔ He QR Code hian a hun a pel tawh a, sum pek theih a ni tawh lo (Pek theih hun a tawp tawh).');
       return;
@@ -244,6 +254,35 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
           {config.name}
         </span>
       </div>
+
+      {/* Pending Approval / Inactive Notice (Request 7) */}
+      {isPendingApproval && (
+        <div className="bg-amber-50 border-2 border-amber-300 p-4 rounded-2xl shadow-xs space-y-1 text-amber-950 animate-pulse">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-amber-500 text-white rounded-xl">
+              <AlertTriangle className="w-4 h-4" />
+            </span>
+            <h4 className="text-xs font-black uppercase text-amber-900">QR Code A La Active Lo (Pending Admin Approval)</h4>
+          </div>
+          <p className="text-xs font-medium text-amber-800 leading-snug">
+            He Bawm / Post hi Creator siam niin Admin-in a la approve loh avangin sum chhun/thawh theih a la ni rih lo. Admin-in a approve hunah a active nghal ang.
+          </p>
+        </div>
+      )}
+
+      {isRejected && (
+        <div className="bg-rose-50 border-2 border-rose-300 p-4 rounded-2xl shadow-xs space-y-1 text-rose-950">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-rose-600 text-white rounded-xl">
+              <AlertCircle className="w-4 h-4" />
+            </span>
+            <h4 className="text-xs font-black uppercase text-rose-900">Campaign Rejected</h4>
+          </div>
+          <p className="text-xs font-medium text-rose-800 leading-snug">
+            He Campaign hi Admin-in a hnawl (rejected) a ni a, sum thawh theih a ni lo. {campaign?.approvalRemarks ? `(Reason: ${campaign.approvalRemarks})` : ''}
+          </p>
+        </div>
+      )}
 
       {/* 1. Category Specific Detailed Information Card */}
       {isRalna && (

@@ -6,10 +6,11 @@ import {
   MapPin, 
   Sparkles, 
   Monitor, 
-  Smartphone,
-  Loader2,
-  History,
-  RotateCw
+  Smartphone, 
+  Loader2, 
+  History, 
+  RotateCw,
+  WifiOff
 } from 'lucide-react';
 import { ScreenId } from '../types';
 import { Language } from '../utils/translations';
@@ -50,6 +51,22 @@ export const Header: React.FC<HeaderProps> = ({
     return saved;
   });
   const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [isOnline, setIsOnline] = useState<boolean>(() => {
+    return typeof navigator !== 'undefined' ? navigator.onLine : true;
+  });
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Approximate nearest Mizoram district helper
   const getNearestDistrict = (lat: number, lng: number): string => {
@@ -200,7 +217,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </svg>
                 </div>
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-slate-950 shadow-xs" />
+              <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-slate-950 shadow-xs ${isOnline ? 'bg-emerald-500' : 'bg-amber-400 animate-ping'}`} />
             </div>
 
             {/* Brand Name & FINTECH Badge (Unclipped with strict whitespace-nowrap) */}
@@ -212,6 +229,11 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="inline-flex bg-amber-400/15 text-amber-300 text-[8.5px] sm:text-[9.5px] font-black px-1.5 sm:px-2 py-0.5 rounded-full border border-amber-400/40 tracking-wider uppercase items-center gap-0.5 shrink-0 whitespace-nowrap">
                   <Sparkles className="w-2.5 h-2.5 text-amber-300 shrink-0" /> FINTECH
                 </span>
+                {!isOnline && (
+                  <span className="inline-flex items-center gap-1 bg-amber-500/20 text-amber-300 text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border border-amber-400/50 uppercase tracking-wider shrink-0 whitespace-nowrap animate-pulse">
+                    <WifiOff className="w-2.5 h-2.5 text-amber-300" /> OFFLINE
+                  </span>
+                )}
               </div>
               {/* Desktop Location Subtext (Hidden on mobile, shown in bottom bar on mobile) */}
               <div 

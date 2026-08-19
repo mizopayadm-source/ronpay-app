@@ -1,4 +1,4 @@
-import { BawmCategory, BawmInfo, Campaign, Transaction, BillService } from '../types';
+import { BawmCategory, BawmInfo, Campaign, Transaction, BillService, CreatorProfile } from '../types';
 
 export const BAWM_CONFIG: Record<BawmCategory, BawmInfo> = {
   ralna: {
@@ -75,6 +75,7 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     validityDate: '2026-08-19T18:00',
     status: 'active',
     createdAt: '2026-08-16T23:00',
+    createdBy: '9862311223',
   },
   {
     id: 'cmp-ralna-2',
@@ -92,6 +93,7 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     validityDate: '2026-08-20T18:00',
     status: 'active',
     createdAt: '2026-08-17T07:00',
+    createdBy: '9436155667',
   },
   {
     id: 'cmp-khawlsak-1',
@@ -107,6 +109,7 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     validityDate: '2026-08-31T23:59',
     status: 'active',
     createdAt: '2026-08-01T09:00',
+    createdBy: '9862311223',
   },
   {
     id: 'cmp-khawlsak-2',
@@ -122,6 +125,7 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     validityDate: '2026-09-15T23:59',
     status: 'active',
     createdAt: '2026-08-05T10:00',
+    createdBy: '9774123456',
   },
   {
     id: 'cmp-khawlsak-3',
@@ -137,6 +141,7 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     validityDate: '2026-09-30T23:59',
     status: 'active',
     createdAt: '2026-08-18T10:00',
+    createdBy: '9862012345',
   },
   {
     id: 'cmp-rikrum-1',
@@ -154,6 +159,7 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     validityDate: '2026-08-25T12:00',
     status: 'active',
     createdAt: '2026-08-10T14:00',
+    createdBy: '9862012345',
   },
   {
     id: 'cmp-kumtluang-1',
@@ -169,6 +175,7 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     validityDate: '2027-08-17T23:59',
     status: 'active',
     createdAt: '2026-01-01T00:00',
+    createdBy: '9862599881',
   },
   {
     id: 'cmp-kumtluang-2',
@@ -184,6 +191,7 @@ export const INITIAL_CAMPAIGNS: Campaign[] = [
     validityDate: '2027-12-31T23:59',
     status: 'active',
     createdAt: '2026-01-10T00:00',
+    createdBy: '9862599881',
   },
 ];
 

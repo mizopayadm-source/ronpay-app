@@ -31,7 +31,7 @@ import {
   XCircle,
   HelpCircle
 } from 'lucide-react';
-import { BawmCategory, Campaign, CreatorProfile, SystemPricingConfig } from '../types';
+import { BawmCategory, Campaign, CreatorProfile, SystemPricingConfig, Transaction } from '../types';
 import { BAWM_CONFIG, DEFAULT_PRICING_CONFIG } from '../data/initialData';
 import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY, isCampaignExpired, getCreatorExpiryStatus } from '../utils/date';
 import { TrialWarningBanner } from './TrialWarningBanner';
@@ -44,6 +44,7 @@ interface CreateQRScreenProps {
   onGenerateQR: (campaign: Campaign) => void;
   onLogout?: () => void;
   campaigns?: Campaign[];
+  transactions?: Transaction[];
   onUpdateCampaign?: (campaign: Campaign) => void;
   onSelectCampaign?: (campaign: Campaign) => void;
 }
@@ -56,6 +57,7 @@ export const CreateQRScreen: React.FC<CreateQRScreenProps> = ({
   onGenerateQR,
   onLogout,
   campaigns = [],
+  transactions = [],
   onUpdateCampaign,
   onSelectCampaign,
 }) => {
@@ -245,6 +247,11 @@ export const CreateQRScreen: React.FC<CreateQRScreenProps> = ({
   const handleGenerateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (creatorProfile.isBlocked) {
+      alert('⚠️ I Creator Account hi Admin-in a block rih avangin Post/QR thar i siam thei rih lo.');
+      return;
+    }
+
     if (!upiId.trim()) {
       alert('Khawngaihin Settlement UPI ID chhu lut hmasa rawh!');
       return;
@@ -432,6 +439,21 @@ export const CreateQRScreen: React.FC<CreateQRScreenProps> = ({
           </div>
         );
       })()}
+
+      {/* Blocked Creator Warning Alert Banner (Request 6) */}
+      {creatorProfile.isBlocked && (
+        <div className="bg-rose-50 border-2 border-rose-400 p-4 rounded-2xl shadow-xs space-y-1 text-rose-950">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-rose-600 text-white rounded-xl">
+              <AlertTriangle className="w-4 h-4" />
+            </span>
+            <h4 className="text-xs font-black uppercase text-rose-900">Creator Account Blocked</h4>
+          </div>
+          <p className="text-xs font-medium text-rose-800 leading-snug">
+            I Creator Account hi Admin-in a block rih avangin Post leh QR Code thar siam theih a ni rih lo. Khawngaihin Admin be rawh.
+          </p>
+        </div>
+      )}
 
       {/* Trial / Subscription Expiring Warning Notification Banner */}
       <TrialWarningBanner
@@ -1188,6 +1210,44 @@ export const CreateQRScreen: React.FC<CreateQRScreenProps> = ({
                         <span>Validity: <b className="text-slate-800">{formatDateDDMMYYYY(camp.validityDate)}</b></span>
                       </div>
                     </div>
+
+                    {/* Target & Goal Progress Bar (Creator Dashboard) */}
+                    {(() => {
+                      const campTxns = transactions.filter(t => t.campaignId === camp.id || t.campaignTitle === camp.title);
+                      const raised = campTxns.reduce((sum, t) => sum + t.amount, 0);
+                      const target = camp.targetAmount || (
+                        camp.category === 'ralna' ? 25000 :
+                        camp.category === 'khawlsak' ? 50000 :
+                        camp.category === 'rikrum' ? 100000 :
+                        camp.category === 'kumtluang' ? 100000 : 50000
+                      );
+                      const pct = target > 0 ? Math.round((raised / target) * 100) : 0;
+                      const clampedPct = Math.min(pct, 100);
+
+                      return (
+                        <div className="bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-black text-slate-900 text-xs">₹{raised.toLocaleString('en-IN')}</span>
+                              <span className="text-[10px] text-slate-500 font-medium">/ Target: ₹{target.toLocaleString('en-IN')}</span>
+                              <span className="text-[7.5px] font-black uppercase text-indigo-700 bg-indigo-100 px-1 py-0.2 rounded">Creator Private</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9.5px] text-slate-400">{campTxns.length} txn{campTxns.length === 1 ? '' : 's'}</span>
+                              <span className="text-[9.5px] font-black text-indigo-700 bg-white border border-indigo-200 px-1.5 py-0.2 rounded">
+                                {pct}%
+                              </span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500 bg-indigo-600"
+                              style={{ width: `${clampedPct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Actions Bar */}
                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">

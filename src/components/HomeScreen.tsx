@@ -31,10 +31,12 @@ import {
   CheckCircle2,
   Info
 } from 'lucide-react';
-import { BawmCategory, Campaign, Transaction, BillService, CreatorProfile } from '../types';
+import { BawmCategory, Campaign, Transaction, BillService, CreatorProfile, AnnouncementBanner } from '../types';
 import { BILL_SERVICES } from '../data/initialData';
 import { formatDateDDMMYYYY, getCreatorExpiryStatus } from '../utils/date';
 import { Language, TRANSLATIONS, translateDynamicText } from '../utils/translations';
+import { isCampaignCreator } from '../utils/storage';
+import { Megaphone, X as CloseIcon } from 'lucide-react';
 
 interface HomeScreenProps {
   onStartScanner: (category?: BawmCategory | 'any') => void;
@@ -44,6 +46,7 @@ interface HomeScreenProps {
   campaigns: Campaign[];
   transactions: Transaction[];
   creatorProfile: CreatorProfile;
+  announcement?: AnnouncementBanner;
   onOpenReports: () => void;
   onShowBalance: () => void;
   onShowBankTransfer: () => void;
@@ -62,6 +65,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   campaigns,
   transactions,
   creatorProfile,
+  announcement,
   onOpenReports,
   onShowBalance,
   onShowBankTransfer,
@@ -72,6 +76,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onShareCampaign,
 }) => {
   const t = TRANSLATIONS[language] || TRANSLATIONS.mizo;
+  const [isAnnouncementDismissed, setIsAnnouncementDismissed] = React.useState<boolean>(false);
 
   // Compute dynamic live stats
   const totalRaised = transactions
@@ -102,6 +107,44 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div className="space-y-4 pb-6 animate-fadeIn">
+      {/* Admin Custom Announcement Banner (Request 3) */}
+      {announcement && announcement.isActive && !isAnnouncementDismissed && (
+        <div className={`p-3.5 rounded-2xl border shadow-sm relative overflow-hidden transition-all text-white ${
+          announcement.type === 'urgent'
+            ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 border-red-500 shadow-red-200'
+            : announcement.type === 'info'
+            ? 'bg-gradient-to-r from-indigo-700 via-purple-700 to-indigo-800 border-indigo-500 shadow-indigo-200'
+            : announcement.type === 'notice'
+            ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 border-amber-500 shadow-amber-200'
+            : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 border-emerald-500 shadow-emerald-200'
+        }`}>
+          <div className="flex items-start justify-between gap-2.5">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <span className="p-1.5 bg-white/20 rounded-xl shrink-0 backdrop-blur-xs mt-0.5">
+                <Megaphone className="w-4 h-4" />
+              </span>
+              <div className="space-y-0.5 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[8.5px] font-black uppercase px-2 py-0.2 rounded-full bg-white/25 text-white">
+                    {announcement.type}
+                  </span>
+                  <h4 className="text-xs font-black tracking-wide truncate">{announcement.title}</h4>
+                </div>
+                <p className="text-[11px] text-white/95 leading-snug">{announcement.message}</p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsAnnouncementDismissed(true)}
+              className="p-1 rounded-full bg-black/20 hover:bg-black/30 text-white/80 hover:text-white transition shrink-0 cursor-pointer"
+              title="Dismiss announcement"
+            >
+              <CloseIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 0. No App Download Required Notice */}
       <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 p-2.5 rounded-2xl border border-emerald-200/80 shadow-xs flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2 min-w-0">
@@ -435,57 +478,110 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </button>
         </div>
 
-        <div className="space-y-2">
-          {recentCreatedQRs.map(camp => (
-            <div 
-              key={camp.id} 
-              onClick={() => onSelectCampaign ? onSelectCampaign(camp) : onSelectBawm(camp.category)}
-              className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-100 hover:border-indigo-200 transition cursor-pointer text-xs group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0 shadow-xs font-bold ${
-                  camp.category === 'ralna' ? 'bg-slate-900 border border-rose-500' :
-                  camp.category === 'khawlsak' ? 'bg-emerald-600' :
-                  camp.category === 'rikrum' ? 'bg-rose-600' : 'bg-blue-600'
-                }`}>
-                  <QrCode className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-bold text-slate-800 text-[11.5px] truncate group-hover:text-indigo-600 transition-colors">
-                    {translateDynamicText(camp.title, language)}
-                  </p>
-                  <p className="text-[9.5px] text-slate-400 font-medium flex items-center gap-1">
-                    <MapPin className="w-2.5 h-2.5 text-rose-400" />
-                    <span className="truncate">{camp.location}</span>
-                  </p>
-                </div>
-              </div>
+        <div className="space-y-2.5">
+          {recentCreatedQRs.map(camp => {
+            const isOwner = isCampaignCreator(camp, creatorProfile);
+            const campTransactions = transactions.filter(t => t.campaignId === camp.id || t.campaignTitle === camp.title);
+            const totalRaised = campTransactions.reduce((sum, t) => sum + t.amount, 0);
+            const target = camp.targetAmount || (
+              camp.category === 'ralna' ? 25000 :
+              camp.category === 'khawlsak' ? 50000 :
+              camp.category === 'rikrum' ? 100000 :
+              camp.category === 'kumtluang' ? 100000 : 50000
+            );
+            const percentage = target > 0 ? Math.round((totalRaised / target) * 100) : 0;
+            const clampedPercentage = Math.min(percentage, 100);
 
-              <div className="flex items-center gap-1.5 shrink-0 pl-2">
-                {onShareCampaign && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onShareCampaign(camp);
-                    }}
-                    title="Share Link & QR Code"
-                    className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 transition shadow-2xs cursor-pointer active:scale-95"
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                  </button>
+            const progressColor = 
+              camp.category === 'khawlsak' ? 'bg-emerald-500' :
+              camp.category === 'rikrum' ? 'bg-rose-500' :
+              camp.category === 'kumtluang' ? 'bg-blue-600' :
+              camp.category === 'ralna' ? 'bg-slate-900' : 'bg-indigo-600';
+
+            return (
+              <div 
+                key={camp.id} 
+                onClick={() => onSelectCampaign ? onSelectCampaign(camp) : onSelectBawm(camp.category)}
+                className="p-3 rounded-2xl bg-slate-50 hover:bg-indigo-50/60 border border-slate-200/90 hover:border-indigo-300 transition cursor-pointer text-xs group space-y-2.5 shadow-2xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0 shadow-xs font-bold ${
+                      camp.category === 'ralna' ? 'bg-slate-900 border border-rose-500' :
+                      camp.category === 'khawlsak' ? 'bg-emerald-600' :
+                      camp.category === 'rikrum' ? 'bg-rose-600' : 'bg-blue-600'
+                    }`}>
+                      <QrCode className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 text-xs truncate group-hover:text-indigo-600 transition-colors">
+                        {translateDynamicText(camp.title, language)}
+                      </p>
+                      <p className="text-[9.5px] text-slate-500 font-medium flex items-center gap-1">
+                        <MapPin className="w-2.5 h-2.5 text-rose-500 shrink-0" />
+                        <span className="truncate">{camp.location}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0 pl-2">
+                    {onShareCampaign && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onShareCampaign(camp);
+                        }}
+                        title="Share Link & QR Code"
+                        className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-indigo-600 hover:border-indigo-300 transition shadow-2xs cursor-pointer active:scale-95"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    <div className="text-right">
+                      <span className="text-[9.5px] font-black text-indigo-600 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
+                        {language === 'mizo' ? 'Pekna' : 'Contribute'} <ChevronRight className="w-3 h-3" />
+                      </span>
+                      <p className="text-[8.5px] text-slate-400 font-mono mt-0.5">
+                        {formatDateDDMMYYYY(camp.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Visual Progress Bar Section (Creator Only - Private to campaign creator) */}
+                {isOwner && (
+                  <div className="bg-white/95 p-2 rounded-xl border border-indigo-100/90 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between text-[10px]">
+                      <div className="flex items-center gap-1 font-bold text-slate-700">
+                        <span className="font-black text-slate-900">₹{totalRaised.toLocaleString('en-IN')}</span>
+                        <span className="text-slate-400 font-normal">/ ₹{target.toLocaleString('en-IN')}</span>
+                        <span className="text-[7.5px] font-black uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded ml-1">
+                          {language === 'english' ? 'Creator Goal' : 'Creator View'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] text-slate-400 font-medium">
+                          {campTransactions.length} {campTransactions.length === 1 ? 'txn' : 'txns'}
+                        </span>
+                        <span className="font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-md text-[9.5px]">
+                          {percentage}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Track */}
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden border border-slate-200/50">
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
+                        style={{ width: `${clampedPercentage}%` }}
+                      />
+                    </div>
+                  </div>
                 )}
-
-                <div className="text-right">
-                  <span className="text-[9.5px] font-black text-indigo-600 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
-                    {language === 'mizo' ? 'Pekna' : 'Contribute'} <ChevronRight className="w-3 h-3" />
-                  </span>
-                  <p className="text-[8.5px] text-slate-400 font-mono mt-0.5">
-                    {formatDateDDMMYYYY(camp.createdAt)}
-                  </p>
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

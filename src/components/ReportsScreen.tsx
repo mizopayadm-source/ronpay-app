@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   ArrowLeft, 
   FileSpreadsheet, 
@@ -26,7 +26,11 @@ import {
   Sparkles,
   Image as ImageIcon,
   MapPin,
-  ZoomIn
+  ZoomIn,
+  CheckCircle2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { Transaction, Campaign, BawmCategory, CreatorProfile } from '../types';
 import { 
@@ -65,9 +69,13 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   const [startDate, setStartDate] = useState<string>('2026-08-01');
   const [endDate, setEndDate] = useState<string>('2026-08-31');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<'date-desc' | 'name-asc' | 'name-desc' | 'amount-desc'>('date-desc');
   
   // Transaction Editing State
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  
+  // CSV Export Feedback Toast State
+  const [exportFeedback, setExportFeedback] = useState<{ message: string; count: number } | null>(null);
 
   // Check if current user is an authenticated QR creator
   const isCreator = Boolean(creatorProfile.isApproved && creatorProfile.phone);
@@ -91,47 +99,70 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     : [];
 
   // Filter transactions: STRICT CREATOR ONLY ACCESS
-  const filteredTransactions = transactions.filter(t => {
-    // 1. Creator Security Barrier: Only show transactions belonging to Creator's campaigns
-    if (!isCreator) return false;
-    if (!creatorCampaignIds.has(t.campaignId) && !creatorCampaigns.some(c => c.title === t.campaignTitle)) {
-      return false;
-    }
-
-    // 2. Category filter
-    if (selectedFilter !== 'all') {
-      if (t.category !== selectedFilter) return false;
-    }
-
-    // 3. Specific Campaign sub-filter
-    if (selectedCampaignId !== 'all') {
-      if (t.campaignId !== selectedCampaignId) return false;
-    }
-
-    // 4. Period / Month filter
-    if (selectedPeriodFilter !== 'all') {
-      if (t.periodLabel && !t.periodLabel.toLowerCase().includes(selectedPeriodFilter.toLowerCase())) {
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      // 1. Creator Security Barrier: Only show transactions belonging to Creator's campaigns
+      if (!isCreator) return false;
+      if (!creatorCampaignIds.has(t.campaignId) && !creatorCampaigns.some(c => c.title === t.campaignTitle)) {
         return false;
       }
-    }
 
-    // 5. Date range filter
-    const txDate = t.timestamp.slice(0, 10);
-    if (startDate && txDate < startDate) return false;
-    if (endDate && txDate > endDate) return false;
+      // 2. Category filter
+      if (selectedFilter !== 'all') {
+        if (t.category !== selectedFilter) return false;
+      }
 
-    // 6. Search query filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchesTitle = t.campaignTitle.toLowerCase().includes(q);
-      const matchesDonor = t.donorName.toLowerCase().includes(q);
-      const matchesId = t.id.toLowerCase().includes(q);
-      const matchesPeriod = t.periodLabel ? t.periodLabel.toLowerCase().includes(q) : false;
-      if (!matchesTitle && !matchesDonor && !matchesId && !matchesPeriod) return false;
-    }
+      // 3. Specific Campaign sub-filter
+      if (selectedCampaignId !== 'all') {
+        if (t.campaignId !== selectedCampaignId) return false;
+      }
 
-    return true;
-  });
+      // 4. Period / Month filter
+      if (selectedPeriodFilter !== 'all') {
+        if (t.periodLabel && !t.periodLabel.toLowerCase().includes(selectedPeriodFilter.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // 5. Date range filter
+      const txDate = t.timestamp.slice(0, 10);
+      if (startDate && txDate < startDate) return false;
+      if (endDate && txDate > endDate) return false;
+
+      // 6. Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesTitle = t.campaignTitle.toLowerCase().includes(q);
+        const matchesDonor = t.donorName.toLowerCase().includes(q);
+        const matchesId = t.id.toLowerCase().includes(q);
+        const matchesPeriod = t.periodLabel ? t.periodLabel.toLowerCase().includes(q) : false;
+        if (!matchesTitle && !matchesDonor && !matchesId && !matchesPeriod) return false;
+      }
+
+      return true;
+    });
+  }, [transactions, isCreator, creatorCampaignIds, creatorCampaigns, selectedFilter, selectedCampaignId, selectedPeriodFilter, startDate, endDate, searchQuery]);
+
+  // Sorted Transactions based on sortOrder (Alphabetical Name, Date, Amount)
+  const sortedTransactions = useMemo(() => {
+    return [...filteredTransactions].sort((a, b) => {
+      if (sortOrder === 'name-asc') {
+        const nameA = a.isAnonymous ? 'Anonymous' : (a.donorName || '');
+        const nameB = b.isAnonymous ? 'Anonymous' : (b.donorName || '');
+        return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      }
+      if (sortOrder === 'name-desc') {
+        const nameA = a.isAnonymous ? 'Anonymous' : (a.donorName || '');
+        const nameB = b.isAnonymous ? 'Anonymous' : (b.donorName || '');
+        return nameB.localeCompare(nameA, undefined, { sensitivity: 'base' });
+      }
+      if (sortOrder === 'amount-desc') {
+        return b.amount - a.amount;
+      }
+      // date-desc (default)
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+  }, [filteredTransactions, sortOrder]);
 
   // Calculate totals (Platform Fee is completely excluded from Reports)
   const totalCount = filteredTransactions.length;
@@ -140,7 +171,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 
   // Kumtluang matrix computation (Hming | Cat1 | Cat2 | Cat3 | Total)
   const isKumtluang = selectedFilter === 'kumtluang';
-  const kumtluangMatrix = buildKumtluangMatrix(filteredTransactions);
+  const kumtluangMatrix = useMemo(() => {
+    return buildKumtluangMatrix(filteredTransactions, sortOrder);
+  }, [filteredTransactions, sortOrder]);
 
   // Selected campaign display name
   const selectedCampaignObj = creatorCampaigns.find(c => c.id === selectedCampaignId);
@@ -155,18 +188,41 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     ? `${formatDateDDMMYYYY(startDate)} to ${formatDateDDMMYYYY(endDate)}`
     : (selectedPeriodFilter !== 'all' ? selectedPeriodFilter : 'All Time');
 
+  const creatorMetadata = isCreator ? {
+    name: creatorProfile.name,
+    orgName: creatorProfile.orgName,
+    phone: creatorProfile.phone
+  } : undefined;
+
+  const showExportSuccessToast = (type: string, count: number) => {
+    setExportFeedback({
+      message: `${type} export hlawhtling ta! (${count} records saved)`,
+      count,
+    });
+    setTimeout(() => {
+      setExportFeedback(null);
+    }, 4500);
+  };
+
   const handleDownloadExcel = () => {
     if (!isCreator) {
       alert('🔒 Transaction Report download hi QR Creator chauhin an ti thei.');
       return;
     }
+    if (sortedTransactions.length === 0) {
+      alert('⚠️ No transactions to export for the selected filter.');
+      return;
+    }
     exportTransactionsToCSV(
-      filteredTransactions, 
-      `RonPay_${selectedFilter}_Matrix_Report`, 
+      sortedTransactions, 
+      `RonPay_${selectedFilter}_Report`, 
       isKumtluang,
       currentCampaignDisplayName,
-      dateRangeText
+      dateRangeText,
+      creatorMetadata,
+      sortOrder
     );
+    showExportSuccessToast(isKumtluang ? 'Kumtluang Matrix CSV' : 'Transaction CSV', sortedTransactions.length);
   };
 
   const handleDownloadPDF = () => {
@@ -174,14 +230,23 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
       alert('🔒 Transaction Report download hi QR Creator chauhin an ti thei.');
       return;
     }
+    if (sortedTransactions.length === 0) {
+      alert('⚠️ No transactions to export for the selected filter.');
+      return;
+    }
     printTransactionsPDF(
-      filteredTransactions, 
+      sortedTransactions, 
       `RonPay ${selectedFilter.toUpperCase()} Matrix Statement`, 
       isKumtluang,
       currentCampaignDisplayName,
       dateRangeText,
-      activeCampaignImage
+      activeCampaignImage,
+      sortOrder
     );
+  };
+
+  const toggleNameSort = () => {
+    setSortOrder(prev => prev === 'name-asc' ? 'name-desc' : 'name-asc');
   };
 
   // Find a transaction by donor name for Kumtluang matrix row edit
@@ -313,8 +378,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               </div>
             </div>
 
-            {/* Period / Month filter & Search */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Period / Month filter, Search & Sort */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
                   📅 Month / Period Filter
@@ -346,6 +411,22 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2 pl-8 pr-2 text-xs font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                  🔤 Sort Order (Hming / Date)
+                </label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as any)}
+                  className="w-full bg-indigo-50/70 border border-indigo-300 rounded-xl p-2 font-bold text-indigo-950 focus:outline-none focus:bg-white focus:border-indigo-600 text-xs"
+                >
+                  <option value="date-desc">A Tharlam (Newest Date First)</option>
+                  <option value="name-asc">Hming: Alphabetical (A - Z)</option>
+                  <option value="name-desc">Hming: Alphabetical (Z - A)</option>
+                  <option value="amount-desc">Amount: A Tam Ber (Highest First)</option>
+                </select>
               </div>
             </div>
 
@@ -467,30 +548,50 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               </div>
             </div>
 
-            {/* Export Buttons */}
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              <button
-                onClick={handleDownloadExcel}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Export Excel / CSV</span>
-              </button>
+            {/* Export Feedback Banner */}
+            {exportFeedback && (
+              <div className="bg-emerald-600 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between shadow-md animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
+                  <span>{exportFeedback.message}</span>
+                </div>
+                <button 
+                  onClick={() => setExportFeedback(null)} 
+                  className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-emerald-700/50 transition cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
-              <button
-                onClick={handleDownloadPDF}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
-              >
-                <FileText className="w-4 h-4" />
-                <span>Print PDF Statement</span>
-              </button>
+            {/* Export Buttons */}
+            <div className="space-y-2 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  onClick={handleDownloadExcel}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95 text-xs"
+                  title="Export filtered summary data as CSV for Excel / Google Sheets"
+                >
+                  <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                  <span>{isKumtluang ? 'Export Matrix CSV' : 'Export CSV (Spreadsheet)'}</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadPDF}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95 text-xs"
+                  title="Print formatted PDF statement with header & badges"
+                >
+                  <FileText className="w-4 h-4 shrink-0" />
+                  <span>Print PDF Statement</span>
+                </button>
+              </div>
             </div>
           </div>
 
           {/* KUMTLUANG MATRIX TABLE VIEW */}
           {isKumtluang ? (
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-2.5 gap-2">
                 <div className="flex items-center gap-1.5">
                   <Table className="w-4 h-4 text-indigo-600" />
                   <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
@@ -498,10 +599,27 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   </h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[9.5px] text-indigo-600 font-bold">
-                    ✏️ Click edit icon to change category amounts
-                  </span>
-                  <span className="text-[9.5px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-200">
+                  <button
+                    onClick={toggleNameSort}
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1 cursor-pointer active:scale-95 ${
+                      sortOrder === 'name-asc' || sortOrder === 'name-desc'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                        : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                    }`}
+                    title="Toggle Alphabetical Name Sort (A-Z / Z-A)"
+                  >
+                    <ArrowUpDown className="w-3 h-3" />
+                    <span>{sortOrder === 'name-asc' ? 'Hming: A - Z' : sortOrder === 'name-desc' ? 'Hming: Z - A' : 'Sort Hming (A-Z)'}</span>
+                  </button>
+                  <button
+                    onClick={handleDownloadExcel}
+                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-emerald-300 flex items-center gap-1 transition cursor-pointer active:scale-95"
+                    title="Download CSV matrix file"
+                  >
+                    <FileSpreadsheet className="w-3 h-3 text-emerald-700" />
+                    <span>Download CSV</span>
+                  </button>
+                  <span className="text-[9.5px] bg-indigo-50 text-indigo-700 px-2 py-1 rounded-lg font-bold border border-indigo-200">
                     {kumtluangMatrix.rows.length} Donors
                   </span>
                 </div>
@@ -518,7 +636,22 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                   <table className="w-full text-left text-[11px] border-collapse">
                     <thead>
                       <tr className="bg-slate-100 text-slate-800 font-extrabold border-b border-slate-200">
-                        <th className="py-2.5 px-3 border-r border-slate-200">Hming</th>
+                        <th className="py-2.5 px-3 border-r border-slate-200">
+                          <button
+                            onClick={toggleNameSort}
+                            className="flex items-center gap-1.5 font-black text-slate-900 hover:text-indigo-600 transition cursor-pointer"
+                            title="Click to sort by donor name"
+                          >
+                            <span>Hming (Donor)</span>
+                            {sortOrder === 'name-asc' ? (
+                              <ArrowUp className="w-3 h-3 text-indigo-600" />
+                            ) : sortOrder === 'name-desc' ? (
+                              <ArrowDown className="w-3 h-3 text-indigo-600" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                            )}
+                          </button>
+                        </th>
                         {kumtluangMatrix.categories.map((h) => (
                           <th key={h} className="py-2.5 px-2.5 text-right border-r border-slate-200 whitespace-nowrap">
                             {h}
@@ -579,19 +712,41 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
           ) : (
             /* STANDARD DETAILED TRANSACTIONS LIST VIEW */
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex flex-wrap items-center justify-between border-b border-slate-100 pb-2.5 gap-2">
                 <div className="flex items-center gap-1.5">
                   <Receipt className="w-4 h-4 text-indigo-600" />
                   <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
-                    Transaction Records ({filteredTransactions.length})
+                    Transaction Records ({sortedTransactions.length})
                   </h3>
                 </div>
-                <span className="text-[9.5px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">
-                  Live Audit
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={toggleNameSort}
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1 cursor-pointer active:scale-95 ${
+                      sortOrder === 'name-asc' || sortOrder === 'name-desc'
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                        : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                    }`}
+                    title="Toggle Alphabetical Name Sort (A-Z / Z-A)"
+                  >
+                    <ArrowUpDown className="w-3 h-3" />
+                    <span>{sortOrder === 'name-asc' ? 'Hming: A - Z' : sortOrder === 'name-desc' ? 'Hming: Z - A' : 'Sort Hming (A-Z)'}</span>
+                  </button>
+                  <button
+                    onClick={handleDownloadExcel}
+                    className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-emerald-300 flex items-center gap-1 transition cursor-pointer active:scale-95"
+                    title="Download transactions as CSV file"
+                  >
+                    <FileSpreadsheet className="w-3 h-3 text-emerald-700" />
+                    <span>Download CSV</span>
+                  </button>
+                  <span className="text-[9.5px] bg-slate-100 text-slate-600 px-2 py-1 rounded-lg font-bold">
+                    Live Audit
+                  </span>
+                </div>
               </div>
 
-              {filteredTransactions.length === 0 ? (
+              {sortedTransactions.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 space-y-1">
                   <Receipt className="w-8 h-8 mx-auto text-slate-300" />
                   <p className="text-xs font-bold text-slate-700">No transactions match your filters</p>
@@ -599,7 +754,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredTransactions.map((tx) => (
+                  {sortedTransactions.map((tx) => (
                     <div 
                       key={tx.id}
                       className="p-3 rounded-2xl border border-slate-200/90 bg-slate-50/80 hover:bg-white hover:border-indigo-200 hover:shadow-xs transition text-xs space-y-2"

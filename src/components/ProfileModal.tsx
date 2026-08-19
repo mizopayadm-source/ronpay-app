@@ -1,5 +1,23 @@
 import React from 'react';
-import { X, UserCheck, ShieldCheck, Phone, Building2, Ribbon, HandHeart, AlertTriangle, Infinity as InfinityIcon, CheckCircle2, Sparkles, RefreshCw, LogOut, LogIn } from 'lucide-react';
+import { 
+  X, 
+  UserCheck, 
+  ShieldCheck, 
+  Phone, 
+  Building2, 
+  Ribbon, 
+  HandHeart, 
+  AlertTriangle, 
+  Infinity as InfinityIcon, 
+  CheckCircle2, 
+  Sparkles, 
+  RefreshCw, 
+  LogOut, 
+  LogIn,
+  Fingerprint,
+  Lock,
+  Unlock
+} from 'lucide-react';
 import { CreatorProfile, BawmCategory } from '../types';
 import { BAWM_CONFIG } from '../data/initialData';
 
@@ -12,6 +30,9 @@ interface ProfileModalProps {
   onLogout?: () => void;
   onLoginClick?: () => void;
   onOpenAdmin?: () => void;
+  biometricEnabled?: boolean;
+  onToggleBiometric?: () => void;
+  onLockNow?: () => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -23,12 +44,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onLogout,
   onLoginClick,
   onOpenAdmin,
+  biometricEnabled = true,
+  onToggleBiometric,
+  onLockNow,
 }) => {
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
-      <div className="bg-white w-full max-w-xs rounded-3xl p-5 space-y-4 shadow-2xl border border-indigo-200 relative text-slate-800">
+      <div className="bg-white w-full max-w-xs rounded-3xl p-5 space-y-3.5 shadow-2xl border border-indigo-200 relative text-slate-800">
         <button
           onClick={onClose}
           className="absolute top-3.5 right-3.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
@@ -69,6 +93,46 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               ))}
             </div>
           </div>
+        </div>
+
+        {/* Biometric Security Control Box */}
+        <div className="bg-indigo-50/70 p-3 rounded-2xl border border-indigo-200/90 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Fingerprint className="w-4 h-4 text-indigo-600" />
+              <span className="font-black text-[11px] text-slate-900">Biometric Lock</span>
+            </div>
+            {onToggleBiometric && (
+              <button
+                type="button"
+                onClick={onToggleBiometric}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  biometricEnabled ? 'bg-indigo-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    biometricEnabled ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            )}
+          </div>
+          <p className="text-[10px] text-slate-500 leading-tight">
+            Fingerprint / Face ID protection for Sulhnu History & Personal Profile.
+          </p>
+          {biometricEnabled && onLockNow && (
+            <button
+              type="button"
+              onClick={() => {
+                onLockNow();
+                onClose();
+              }}
+              className="w-full mt-1 bg-white hover:bg-slate-100 border border-indigo-200 text-indigo-700 font-bold py-1.5 px-2 rounded-xl text-[10.5px] transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              <Lock className="w-3 h-3" /> Lock App / Reset Session
+            </button>
+          )}
         </div>
 
         {/* PhonePe PG V2 Management Trigger */}
@@ -115,11 +179,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           )
         )}
 
-        <div className="bg-amber-50/80 p-2.5 rounded-xl border border-amber-200 text-center">
+        <div className="bg-amber-50/80 p-2 rounded-xl border border-amber-200 text-center">
           <p className="text-[10px] text-amber-900 font-bold">
             RonPay Community Platform v2.5
           </p>
-          <p className="text-[9px] text-amber-800/80">Tailored for Mizoram Community Bawms & UPI</p>
+          <p className="text-[9px] text-amber-800/80">Protected with Biometrics & End-to-End Integrity</p>
         </div>
 
         <div className="flex gap-2">
@@ -127,7 +191,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onClick={onResetData}
             className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-[10.5px] transition flex items-center justify-center gap-1 cursor-pointer"
           >
-            <RefreshCw className="w-3 h-3" /> Reset Demo Data
+            <RefreshCw className="w-3 h-3" /> Reset Demo
           </button>
           <button
             onClick={onClose}

@@ -34,9 +34,12 @@ export interface Campaign {
   upiId: string;
   imageUrl?: string;
   validityDate: string;
-  status: 'active' | 'pending_approval' | 'expired';
+  status: 'active' | 'pending_approval' | 'rejected' | 'expired';
   createdAt: string;
   createdBy?: string; // Phone or Creator Name
+  approvalRemarks?: string;
+  approvedAt?: string;
+  approvedBy?: string;
   
   // Ralna specific
   mitthiHming?: string;
@@ -87,6 +90,8 @@ export interface CreatorProfile {
   phone: string;
   isPhoneVerified: boolean;
   isApproved: boolean;
+  isBlocked?: boolean;
+  rejectionReason?: string;
   approvedCategories: BawmCategory[];
   createdQRsCount: number;
   trialExpiresAt?: string;
@@ -97,6 +102,28 @@ export interface CreatorProfile {
   customDiscountPercent?: number;
   customTrialDays?: number;
   isFreeServiceGranted?: boolean;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string;
+  details: string;
+  targetType: 'creator' | 'campaign' | 'pricing' | 'announcement' | 'system';
+  targetId?: string;
+  performedBy: string;
+  timestamp: string;
+}
+
+export interface AnnouncementBanner {
+  id: string;
+  isActive: boolean;
+  type: 'urgent' | 'info' | 'notice' | 'event';
+  title: string;
+  message: string;
+  linkText?: string;
+  linkAction?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface BawmFeeRule {
