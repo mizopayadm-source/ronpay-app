@@ -1,0 +1,142 @@
+import React from 'react';
+import { X, UserCheck, ShieldCheck, Phone, Building2, Ribbon, HandHeart, AlertTriangle, Infinity as InfinityIcon, CheckCircle2, Sparkles, RefreshCw, LogOut, LogIn } from 'lucide-react';
+import { CreatorProfile, BawmCategory } from '../types';
+import { BAWM_CONFIG } from '../data/initialData';
+
+interface ProfileModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  creatorProfile: CreatorProfile;
+  onResetData: () => void;
+  onOpenPhonePePortal?: () => void;
+  onLogout?: () => void;
+  onLoginClick?: () => void;
+  onOpenAdmin?: () => void;
+}
+
+export const ProfileModal: React.FC<ProfileModalProps> = ({
+  isOpen,
+  onClose,
+  creatorProfile,
+  onResetData,
+  onOpenPhonePePortal,
+  onLogout,
+  onLoginClick,
+  onOpenAdmin,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
+      <div className="bg-white w-full max-w-xs rounded-3xl p-5 space-y-4 shadow-2xl border border-indigo-200 relative text-slate-800">
+        <button
+          onClick={onClose}
+          className="absolute top-3.5 right-3.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="text-center space-y-1">
+          <div className="w-14 h-14 bg-gradient-to-tr from-indigo-900 to-purple-900 text-white rounded-2xl flex items-center justify-center mx-auto text-xl font-black shadow-md border-2 border-amber-300">
+            {creatorProfile.name ? creatorProfile.name.charAt(0).toUpperCase() : 'R'}
+          </div>
+          <h3 className="font-black text-slate-900 text-sm mt-1">{creatorProfile.name || 'RonPay User'}</h3>
+          <p className="text-[10px] text-slate-500 font-medium">{creatorProfile.designation || 'Creator Member'} • {creatorProfile.orgName || 'Mizoram Branch'}</p>
+        </div>
+
+        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2 text-xs">
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 font-medium flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> Mobile:</span>
+            <span className="font-bold text-slate-800">{creatorProfile.phone || '9862300000'}</span>
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="text-slate-500 font-medium flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Account Status:</span>
+            <span className="font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[9.5px]">
+              {creatorProfile.isApproved ? 'APPROVED CREATOR' : 'STANDARD USER'}
+            </span>
+          </div>
+
+          <div className="border-t border-slate-200 pt-2">
+            <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1.5">
+              Active Bawm Creator Rights:
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {creatorProfile.approvedCategories.map(cat => (
+                <span key={cat} className="text-[9.5px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-900 border border-indigo-200 flex items-center gap-1">
+                  <CheckCircle2 className="w-2.5 h-2.5 text-indigo-600" /> {BAWM_CONFIG[cat].name}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* PhonePe PG V2 Management Trigger */}
+        {onOpenPhonePePortal && (
+          <button
+            onClick={() => {
+              onClose();
+              onOpenPhonePePortal();
+            }}
+            className="w-full bg-purple-50 hover:bg-purple-100/90 border border-purple-200 text-purple-900 p-2.5 rounded-2xl flex items-center justify-between text-xs font-bold transition cursor-pointer"
+          >
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              PhonePe TSP & PG V2 Portal
+            </span>
+            <span className="text-[10px] text-purple-600 font-mono">UAT</span>
+          </button>
+        )}
+
+        {/* Creator Session Login / Logout Action */}
+        {creatorProfile.isApproved ? (
+          onLogout && (
+            <button
+              onClick={() => {
+                onLogout();
+                onClose();
+              }}
+              className="w-full bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-black p-2.5 rounded-2xl flex items-center justify-center gap-2 text-xs transition cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 text-rose-600" /> Creator Logout (Back to Normal User)
+            </button>
+          )
+        ) : (
+          onLoginClick && (
+            <button
+              onClick={() => {
+                onClose();
+                onLoginClick();
+              }}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black p-2.5 rounded-2xl flex items-center justify-center gap-2 text-xs transition shadow-xs cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" /> Creator Login / In-Register
+            </button>
+          )
+        )}
+
+        <div className="bg-amber-50/80 p-2.5 rounded-xl border border-amber-200 text-center">
+          <p className="text-[10px] text-amber-900 font-bold">
+            RonPay Community Platform v2.5
+          </p>
+          <p className="text-[9px] text-amber-800/80">Tailored for Mizoram Community Bawms & UPI</p>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={onResetData}
+            className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-[10.5px] transition flex items-center justify-center gap-1 cursor-pointer"
+          >
+            <RefreshCw className="w-3 h-3" /> Reset Demo Data
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-xl text-[10.5px] transition cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};

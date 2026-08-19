@@ -1,0 +1,988 @@
+import React, { useState } from 'react';
+import { 
+  ArrowLeft, 
+  FileSpreadsheet, 
+  FileText, 
+  Calendar, 
+  Filter, 
+  Search, 
+  Layers,
+  ChevronRight, 
+  TrendingUp,
+  Receipt,
+  Download,
+  Building2,
+  PieChart,
+  Table,
+  Users,
+  Lock,
+  ShieldAlert,
+  UserCheck,
+  Edit3,
+  Trash2,
+  Plus,
+  Check,
+  X,
+  Sparkles,
+  Image as ImageIcon,
+  MapPin,
+  ZoomIn
+} from 'lucide-react';
+import { Transaction, Campaign, BawmCategory, CreatorProfile } from '../types';
+import { 
+  exportTransactionsToCSV, 
+  printTransactionsPDF, 
+  buildKumtluangMatrix 
+} from '../utils/export';
+import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../utils/date';
+
+interface ReportsScreenProps {
+  transactions: Transaction[];
+  campaigns: Campaign[];
+  creatorProfile: CreatorProfile;
+  onBack: () => void;
+  onOpenLogin?: () => void;
+  onUpdateCampaign?: (campaign: Campaign) => void;
+  onUpdateTransaction?: (transaction: Transaction) => void;
+  onDeleteTransaction?: (transactionId: string) => void;
+  onOpenImagePreview?: (url: string, title?: string, subtitle?: string, location?: string) => void;
+}
+
+export const ReportsScreen: React.FC<ReportsScreenProps> = ({
+  transactions,
+  campaigns,
+  creatorProfile,
+  onBack,
+  onOpenLogin,
+  onUpdateCampaign,
+  onUpdateTransaction,
+  onDeleteTransaction,
+  onOpenImagePreview,
+}) => {
+  const [selectedFilter, setSelectedFilter] = useState<string>('kumtluang');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
+  const [selectedPeriodFilter, setSelectedPeriodFilter] = useState<string>('all');
+  const [startDate, setStartDate] = useState<string>('2026-08-01');
+  const [endDate, setEndDate] = useState<string>('2026-08-31');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // Transaction Editing State
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+
+  // Check if current user is an authenticated QR creator
+  const isCreator = Boolean(creatorProfile.isApproved && creatorProfile.phone);
+
+  // Filter campaigns strictly owned/created by this creator
+  const creatorCampaigns = campaigns.filter(c => {
+    if (!isCreator) return false;
+    // Match by creator phone or createdBy or name or creator's approved category
+    if (c.createdBy && (c.createdBy === creatorProfile.phone || c.createdBy === creatorProfile.name)) {
+      return true;
+    }
+    // Also include campaigns in creator's approved categories if created
+    return creatorProfile.approvedCategories.includes(c.category);
+  });
+
+  const creatorCampaignIds = new Set(creatorCampaigns.map(c => c.id));
+
+  // Available campaigns for selector based on creator scope
+  const availableCampaigns = isCreator 
+    ? creatorCampaigns.filter(c => selectedFilter === 'all' || c.category === selectedFilter)
+    : [];
+
+  // Filter transactions: STRICT CREATOR ONLY ACCESS
+  const filteredTransactions = transactions.filter(t => {
+    // 1. Creator Security Barrier: Only show transactions belonging to Creator's campaigns
+    if (!isCreator) return false;
+    if (!creatorCampaignIds.has(t.campaignId) && !creatorCampaigns.some(c => c.title === t.campaignTitle)) {
+      return false;
+    }
+
+    // 2. Category filter
+    if (selectedFilter !== 'all') {
+      if (t.category !== selectedFilter) return false;
+    }
+
+    // 3. Specific Campaign sub-filter
+    if (selectedCampaignId !== 'all') {
+      if (t.campaignId !== selectedCampaignId) return false;
+    }
+
+    // 4. Period / Month filter
+    if (selectedPeriodFilter !== 'all') {
+      if (t.periodLabel && !t.periodLabel.toLowerCase().includes(selectedPeriodFilter.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // 5. Date range filter
+    const txDate = t.timestamp.slice(0, 10);
+    if (startDate && txDate < startDate) return false;
+    if (endDate && txDate > endDate) return false;
+
+    // 6. Search query filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchesTitle = t.campaignTitle.toLowerCase().includes(q);
+      const matchesDonor = t.donorName.toLowerCase().includes(q);
+      const matchesId = t.id.toLowerCase().includes(q);
+      const matchesPeriod = t.periodLabel ? t.periodLabel.toLowerCase().includes(q) : false;
+      if (!matchesTitle && !matchesDonor && !matchesId && !matchesPeriod) return false;
+    }
+
+    return true;
+  });
+
+  // Calculate totals (Platform Fee is completely excluded from Reports)
+  const totalCount = filteredTransactions.length;
+  const uniqueDonorsCount = new Set(filteredTransactions.map(t => t.donorName)).size;
+  const grandTotal = filteredTransactions.reduce((sum, t) => sum + t.amount, 0);
+
+  // Kumtluang matrix computation (Hming | Cat1 | Cat2 | Cat3 | Total)
+  const isKumtluang = selectedFilter === 'kumtluang';
+  const kumtluangMatrix = buildKumtluangMatrix(filteredTransactions);
+
+  // Selected campaign display name
+  const selectedCampaignObj = creatorCampaigns.find(c => c.id === selectedCampaignId);
+  const currentCampaignDisplayName = selectedCampaignObj 
+    ? selectedCampaignObj.title 
+    : (selectedFilter === 'all' ? 'All My Campaigns' : `${selectedFilter.toUpperCase()} BAWM (All My Campaigns)`);
+
+  // Active uploaded image associated with campaign / QR
+  const activeCampaignImage = selectedCampaignObj?.imageUrl || (availableCampaigns.find(c => Boolean(c.imageUrl))?.imageUrl);
+
+  const dateRangeText = startDate && endDate
+    ? `${formatDateDDMMYYYY(startDate)} to ${formatDateDDMMYYYY(endDate)}`
+    : (selectedPeriodFilter !== 'all' ? selectedPeriodFilter : 'All Time');
+
+  const handleDownloadExcel = () => {
+    if (!isCreator) {
+      alert('🔒 Transaction Report download hi QR Creator chauhin an ti thei.');
+      return;
+    }
+    exportTransactionsToCSV(
+      filteredTransactions, 
+      `RonPay_${selectedFilter}_Matrix_Report`, 
+      isKumtluang,
+      currentCampaignDisplayName,
+      dateRangeText
+    );
+  };
+
+  const handleDownloadPDF = () => {
+    if (!isCreator) {
+      alert('🔒 Transaction Report download hi QR Creator chauhin an ti thei.');
+      return;
+    }
+    printTransactionsPDF(
+      filteredTransactions, 
+      `RonPay ${selectedFilter.toUpperCase()} Matrix Statement`, 
+      isKumtluang,
+      currentCampaignDisplayName,
+      dateRangeText,
+      activeCampaignImage
+    );
+  };
+
+  // Find a transaction by donor name for Kumtluang matrix row edit
+  const handleEditDonorRow = (donorName: string) => {
+    const tx = filteredTransactions.find(t => t.donorName === donorName);
+    if (tx) {
+      setEditingTransaction(tx);
+    } else {
+      alert('Transaction record hmuh a ni lo.');
+    }
+  };
+
+  return (
+    <div className="space-y-4 pb-6 animate-fadeIn">
+      {/* Enhanced Top Screen Header */}
+      <div className="bg-white p-3.5 sm:p-4.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white flex items-center justify-center transition cursor-pointer active:scale-95 shrink-0 shadow-2xs"
+            title="Go back to Home"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
+                Reports & Financial Statements
+              </h2>
+              <span className="text-[9.5px] font-black px-2.5 py-0.5 rounded-md bg-indigo-100 text-indigo-900 border border-indigo-300 uppercase tracking-wide">
+                Live Audit
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              Official Bawm Collection Matrix, Donor History & Export Sheets
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="text-[10.5px] bg-slate-100 text-slate-700 font-bold px-3 py-1.5 rounded-xl border border-slate-300 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Active Session
+          </span>
+        </div>
+      </div>
+
+      {/* Creator Restriction Banner if not logged in */}
+      {!isCreator ? (
+        <div className="bg-slate-900 text-white p-6 rounded-3xl border border-slate-800 shadow-xl text-center space-y-3">
+          <div className="w-14 h-14 bg-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto border border-rose-500/30">
+            <Lock className="w-7 h-7" />
+          </div>
+
+          <div className="space-y-1">
+            <h3 className="font-black text-base text-white">QR Creator Chiahin Report An Download Thei</h3>
+            <p className="text-xs text-slate-300 max-w-md mx-auto">
+              Transaction Report leh Financial Statement reng reng hi QR Creator-in ama campaign create chin chiah a hmuin a download thei ang.
+            </p>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={onOpenLogin}
+              className="bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer"
+            >
+              Creator Login / Verify Account
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Authenticated Creator Report Section */
+        <>
+          {/* Creator Scope Info Badge */}
+          <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-2xl flex items-center justify-between text-xs">
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-emerald-700" />
+              <div>
+                <span className="font-black text-emerald-950">{creatorProfile.name}</span>
+                <p className="text-[10px] text-emerald-700 font-medium">
+                  {creatorProfile.orgName} ({creatorProfile.phone}) • {creatorCampaigns.length} Active Campaigns
+                </p>
+              </div>
+            </div>
+            <span className="text-[9.5px] bg-emerald-100 text-emerald-800 font-black px-2 py-0.5 rounded-md border border-emerald-300 uppercase">
+              Verified Creator Access
+            </span>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/90 space-y-3.5 shadow-xs text-xs">
+            {/* Main Category Filter */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                  Bawm Category
+                </label>
+                <select
+                  value={selectedFilter}
+                  onChange={(e) => {
+                    setSelectedFilter(e.target.value);
+                    setSelectedCampaignId('all');
+                  }}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600 transition text-xs"
+                >
+                  <option value="kumtluang">Kumtluang Bawm (Category Matrix View)</option>
+                  <option value="ralna">Ralna Bawm (Chhiatni)</option>
+                  <option value="khawlsak">Khawlsak Bawm (Riangvai)</option>
+                  <option value="rikrum">Rikrum Bawm (Emergency)</option>
+                  <option value="all">All My Created Categories</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                  My Specific Campaign / QR
+                </label>
+                <select
+                  value={selectedCampaignId}
+                  onChange={(e) => setSelectedCampaignId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600 transition text-xs"
+                >
+                  <option value="all">All My Campaigns in this Bawm</option>
+                  {availableCampaigns.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Period / Month filter & Search */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                  📅 Month / Period Filter
+                </label>
+                <select
+                  value={selectedPeriodFilter}
+                  onChange={(e) => setSelectedPeriodFilter(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600 text-xs"
+                >
+                  <option value="all">All Months & Periods</option>
+                  <option value="August">August 2026</option>
+                  <option value="July">July 2026</option>
+                  <option value="June">June 2026</option>
+                  <option value="Q3">Q3 (Jul - Sep)</option>
+                  <option value="Q2">Q2 (Apr - Jun)</option>
+                  <option value="2026">2026 Full Year</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10.5px] font-bold text-slate-700 block mb-1">Search Donor / TxID</label>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Filter donor, TxID, period..."
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl py-2 pl-8 pr-2 text-xs font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Date pickers */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10.5px] font-bold text-slate-700 block mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600 text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-[10.5px] font-bold text-slate-700 block mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Active Report Focus Banner with Uploaded Campaign Image (Spacious & High-Visibility) */}
+            <div className="bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-900 text-white p-4 sm:p-5.5 rounded-3xl border border-indigo-700/60 shadow-lg flex flex-col md:flex-row justify-between md:items-center gap-4">
+              <div className="flex items-start sm:items-center gap-3.5 sm:gap-4 min-w-0">
+                {/* Uploaded Campaign Image Thumbnail / Avatar */}
+                {activeCampaignImage ? (
+                  <div 
+                    onClick={() => onOpenImagePreview && onOpenImagePreview(
+                      activeCampaignImage, 
+                      currentCampaignDisplayName, 
+                      `Hun Chhung: ${dateRangeText}`,
+                      selectedCampaignObj?.location
+                    )}
+                    className="relative group shrink-0 cursor-pointer"
+                    title="Click to preview full high-res photo"
+                  >
+                    <img 
+                      src={activeCampaignImage} 
+                      alt={currentCampaignDisplayName} 
+                      className="w-18 h-18 sm:w-22 sm:h-22 rounded-2xl object-cover border-2 border-amber-400 shadow-md transition-transform group-hover:scale-105"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent rounded-2xl flex items-center justify-center transition-colors">
+                      <span className="text-[8px] sm:text-[9px] font-black bg-slate-950/85 text-amber-300 px-1.5 py-0.5 rounded-md backdrop-blur-xs absolute bottom-1.5 left-1/2 -translate-x-1/2 whitespace-nowrap border border-amber-400/40 flex items-center gap-1 shadow-sm">
+                        <ZoomIn className="w-2.5 h-2.5" /> Thlalak
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-18 h-18 sm:w-22 sm:h-22 rounded-2xl bg-indigo-900/80 border border-indigo-700/60 flex flex-col items-center justify-center text-indigo-300 shrink-0 gap-1">
+                    <ImageIcon className="w-7 h-7 text-indigo-400" />
+                    <span className="text-[8px] text-indigo-300 font-bold uppercase tracking-wider">No Photo</span>
+                  </div>
+                )}
+
+                <div className="space-y-1 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[9.5px] bg-amber-400/20 text-amber-300 font-black uppercase px-2 py-0.5 rounded-md border border-amber-400/40 tracking-wide">
+                      REPORT FOCUS
+                    </span>
+                    {selectedCampaignObj?.category && (
+                      <span className="text-[9.5px] bg-indigo-500/30 text-indigo-200 font-bold uppercase px-2 py-0.5 rounded-md border border-indigo-400/30">
+                        {selectedCampaignObj.category.toUpperCase()} BAWM
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 className="text-sm sm:text-base font-black text-white leading-snug break-words">
+                    {currentCampaignDisplayName}
+                  </h3>
+
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-300 pt-0.5">
+                    {selectedCampaignObj?.location && (
+                      <span className="flex items-center gap-1 font-medium text-amber-300/90">
+                        <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span>{selectedCampaignObj.location}</span>
+                      </span>
+                    )}
+                    <span className="flex items-center gap-1 font-medium text-indigo-200">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Hun Chhung: <b className="text-white font-bold">{dateRangeText}</b></span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-950/60 border border-indigo-500/30 p-3 sm:p-3.5 rounded-2xl text-left md:text-right shrink-0 md:min-w-[170px] flex md:flex-col justify-between items-center md:items-end">
+                <div>
+                  <span className="text-[10px] text-indigo-200 font-bold uppercase tracking-wider block">
+                    Pek Tling Khawm Zat
+                  </span>
+                  <span className="text-base sm:text-xl font-black text-emerald-400 leading-tight block mt-0.5">
+                    ₹{grandTotal.toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <span className="text-[9px] bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold self-center md:self-end mt-0 md:mt-1">
+                  100% Direct (0% Fee)
+                </span>
+              </div>
+            </div>
+
+            {/* Summary Highlights (Zero Platform Fee displayed) */}
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
+              <div className="bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-100">
+                <p className="text-[9.5px] text-slate-500 font-bold uppercase">Total Txns</p>
+                <p className="text-sm font-black text-indigo-900 mt-0.5">{totalCount}</p>
+              </div>
+              <div className="bg-blue-50/70 p-2.5 rounded-xl border border-blue-100">
+                <p className="text-[9.5px] text-slate-500 font-bold uppercase">Petu Zat (Donors)</p>
+                <p className="text-sm font-black text-blue-900 mt-0.5">{uniqueDonorsCount}</p>
+              </div>
+              <div className="bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-100">
+                <p className="text-[9.5px] text-slate-500 font-bold uppercase">Amount Collected</p>
+                <p className="text-sm font-black text-emerald-700 mt-0.5">₹{grandTotal.toLocaleString('en-IN')}</p>
+              </div>
+            </div>
+
+            {/* Export Buttons */}
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                onClick={handleDownloadExcel}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Export Excel / CSV</span>
+              </button>
+
+              <button
+                onClick={handleDownloadPDF}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Print PDF Statement</span>
+              </button>
+            </div>
+          </div>
+
+          {/* KUMTLUANG MATRIX TABLE VIEW */}
+          {isKumtluang ? (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div className="flex items-center gap-1.5">
+                  <Table className="w-4 h-4 text-indigo-600" />
+                  <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                    Kumtluang Bawm Matrix View
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9.5px] text-indigo-600 font-bold">
+                    ✏️ Click edit icon to change category amounts
+                  </span>
+                  <span className="text-[9.5px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-bold border border-indigo-200">
+                    {kumtluangMatrix.rows.length} Donors
+                  </span>
+                </div>
+              </div>
+
+              {kumtluangMatrix.rows.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 space-y-1">
+                  <Receipt className="w-8 h-8 mx-auto text-slate-300" />
+                  <p className="text-xs font-bold text-slate-700">No Kumtluang donations found</p>
+                  <p className="text-[10px] text-slate-400">Try adjusting the date filter or category selection.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-left text-[11px] border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 text-slate-800 font-extrabold border-b border-slate-200">
+                        <th className="py-2.5 px-3 border-r border-slate-200">Hming</th>
+                        {kumtluangMatrix.categories.map((h) => (
+                          <th key={h} className="py-2.5 px-2.5 text-right border-r border-slate-200 whitespace-nowrap">
+                            {h}
+                          </th>
+                        ))}
+                        <th className="py-2.5 px-3 text-right bg-indigo-100 text-indigo-950 font-black">
+                          Total
+                        </th>
+                        <th className="py-2.5 px-2.5 text-center bg-slate-100 text-slate-700 font-black">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 font-medium text-slate-700">
+                      {kumtluangMatrix.rows.map((row, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2 px-3 font-bold text-slate-900 border-r border-slate-200">
+                            {row.donorName}
+                          </td>
+                          {kumtluangMatrix.categories.map((h) => (
+                            <td key={h} className="py-2 px-2.5 text-right font-mono text-slate-600 border-r border-slate-200">
+                              {row.categoryAmounts[h] ? row.categoryAmounts[h].toLocaleString('en-IN') : '0'}
+                            </td>
+                          ))}
+                          <td className="py-2 px-3 text-right font-black font-mono text-indigo-900 bg-indigo-50/50">
+                            {row.total.toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-2 px-2.5 text-center">
+                            <button
+                              onClick={() => handleEditDonorRow(row.donorName)}
+                              className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-extrabold transition flex items-center gap-1 mx-auto cursor-pointer border border-indigo-200 shadow-2xs"
+                              title="Mimal Categories an pek dan siamtha rawh"
+                            >
+                              <Edit3 className="w-3 h-3" /> Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-900 text-white font-black text-xs">
+                        <td className="py-2.5 px-3 uppercase tracking-wider">Total</td>
+                        {kumtluangMatrix.categories.map((h) => (
+                          <td key={h} className="py-2.5 px-2.5 text-right font-mono text-amber-300">
+                            {kumtluangMatrix.columnTotals[h]?.toLocaleString('en-IN') || '0'}
+                          </td>
+                        ))}
+                        <td className="py-2.5 px-3 text-right font-mono text-emerald-400 bg-slate-950 font-black text-sm">
+                          ₹{kumtluangMatrix.grandTotal.toLocaleString('en-IN')}
+                        </td>
+                        <td className="py-2.5 px-2.5 bg-slate-950"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* STANDARD DETAILED TRANSACTIONS LIST VIEW */
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div className="flex items-center gap-1.5">
+                  <Receipt className="w-4 h-4 text-indigo-600" />
+                  <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
+                    Transaction Records ({filteredTransactions.length})
+                  </h3>
+                </div>
+                <span className="text-[9.5px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">
+                  Live Audit
+                </span>
+              </div>
+
+              {filteredTransactions.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 space-y-1">
+                  <Receipt className="w-8 h-8 mx-auto text-slate-300" />
+                  <p className="text-xs font-bold text-slate-700">No transactions match your filters</p>
+                  <p className="text-[10px] text-slate-400">Try selecting a different date range or category.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredTransactions.map((tx) => (
+                    <div 
+                      key={tx.id}
+                      className="p-3 rounded-2xl border border-slate-200/90 bg-slate-50/80 hover:bg-white hover:border-indigo-200 hover:shadow-xs transition text-xs space-y-2"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-slate-900 text-xs">
+                            {tx.isAnonymous ? 'Anonymous Donor' : tx.donorName}
+                          </span>
+                          <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                            tx.category === 'ralna' ? 'bg-slate-900 text-white' :
+                            tx.category === 'khawlsak' ? 'bg-emerald-100 text-emerald-800' :
+                            tx.category === 'rikrum' ? 'bg-rose-100 text-rose-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {tx.category}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-slate-900 text-xs">
+                            ₹{tx.amount.toLocaleString('en-IN')}
+                          </span>
+                          <button
+                            onClick={() => setEditingTransaction(tx)}
+                            className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition cursor-pointer"
+                            title="Edit transaction / categories"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Sub-category breakdown summary if exists */}
+                      {tx.subCategoryBreakdown && Object.keys(tx.subCategoryBreakdown).length > 0 && (
+                        <div className="flex flex-wrap gap-1 bg-white p-1.5 rounded-xl border border-slate-200 text-[10px]">
+                          {Object.entries(tx.subCategoryBreakdown).map(([cat, amt]) => (
+                            <span key={cat} className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold">
+                              {cat}: <span className="font-mono text-indigo-700">₹{amt}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center text-[10px] text-slate-500">
+                        <div className="flex items-center gap-1.5 truncate max-w-[220px]">
+                          <span className="truncate">{tx.campaignTitle}</span>
+                          {tx.periodLabel && (
+                            <span className="bg-indigo-50 text-indigo-700 text-[9px] font-bold px-1.5 py-0.2 rounded border border-indigo-200 shrink-0">
+                              📅 {tx.periodLabel}
+                            </span>
+                          )}
+                        </div>
+                        <span>{formatDateTimeDDMMYYYY(tx.timestamp)}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center text-[9px] text-slate-400 pt-1 border-t border-slate-200/60 font-mono">
+                        <span>ID: {tx.id}</span>
+                        <span className="text-emerald-700 font-bold uppercase">{tx.paymentMethod} • {tx.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* TRANSACTION & CATEGORY BREAKDOWN EDIT MODAL */}
+      {editingTransaction && (
+        <EditTransactionModal
+          transaction={editingTransaction}
+          campaigns={campaigns}
+          onClose={() => setEditingTransaction(null)}
+          onSave={(updatedTx) => {
+            if (onUpdateTransaction) {
+              onUpdateTransaction(updatedTx);
+            }
+            setEditingTransaction(null);
+          }}
+          onDelete={(id) => {
+            if (onDeleteTransaction) {
+              onDeleteTransaction(id);
+            }
+            setEditingTransaction(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------
+   SUB-COMPONENT: EDIT TRANSACTION & CATEGORY BREAKDOWN MODAL
+-------------------------------------------------------------- */
+interface EditTransactionModalProps {
+  transaction: Transaction;
+  campaigns: Campaign[];
+  onClose: () => void;
+  onSave: (updated: Transaction) => void;
+  onDelete: (id: string) => void;
+}
+
+const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
+  transaction,
+  campaigns,
+  onClose,
+  onSave,
+  onDelete,
+}) => {
+  const [donorName, setDonorName] = useState<string>(transaction.donorName || '');
+  const [isAnonymous, setIsAnonymous] = useState<boolean>(transaction.isAnonymous || false);
+  const [paymentMethod, setPaymentMethod] = useState<'online' | 'cash'>(transaction.paymentMethod || 'online');
+  const [status, setStatus] = useState<'completed' | 'pending_verification'>(transaction.status || 'completed');
+  
+  // Breakdown state
+  const campaign = campaigns.find(c => c.id === transaction.campaignId);
+  const defaultCategories = campaign?.subCategories && campaign.subCategories.length > 0 
+    ? campaign.subCategories 
+    : ['Pathian Ram', 'Mission', 'Building Fund'];
+
+  const initialBreakdown: { [key: string]: number } = transaction.subCategoryBreakdown || {
+    [defaultCategories[0]]: transaction.amount || 0
+  };
+
+  const [breakdown, setBreakdown] = useState<{ [key: string]: number }>(initialBreakdown);
+  const [newCatName, setNewCatName] = useState<string>('');
+  const [newCatAmount, setNewCatAmount] = useState<string>('');
+  
+  // Non-Kumtluang flat amount
+  const [flatAmount, setFlatAmount] = useState<string>(transaction.amount.toString());
+
+  const isKumtluang = transaction.category === 'kumtluang';
+
+  const handleAmountChange = (catName: string, val: string) => {
+    const num = parseFloat(val) || 0;
+    setBreakdown(prev => ({
+      ...prev,
+      [catName]: num
+    }));
+  };
+
+  const handleRemoveCategory = (catName: string) => {
+    const next = { ...breakdown };
+    delete next[catName];
+    setBreakdown(next);
+  };
+
+  const handleAddCategory = () => {
+    if (newCatName.trim()) {
+      const num = parseFloat(newCatAmount) || 0;
+      setBreakdown(prev => ({
+        ...prev,
+        [newCatName.trim()]: num
+      }));
+      setNewCatName('');
+      setNewCatAmount('');
+    }
+  };
+
+  // Calculate current subtotal
+  const currentSubtotal: number = isKumtluang
+    ? (Object.values(breakdown) as number[]).reduce((sum: number, v: number) => sum + (Number(v) || 0), 0)
+    : (parseFloat(flatAmount) || 0);
+
+  const platformFee: number = Math.round(currentSubtotal * 0.01);
+  const totalAmount: number = currentSubtotal + platformFee;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (currentSubtotal <= 0) {
+      alert('Pek zat (Amount) hi ₹0 aia tam a ni tur a ni.');
+      return;
+    }
+
+    const updated: Transaction = {
+      ...transaction,
+      donorName: donorName.trim(),
+      isAnonymous: isAnonymous,
+      amount: currentSubtotal,
+      platformFee: platformFee,
+      totalAmount: totalAmount,
+      paymentMethod: paymentMethod,
+      status: status,
+      subCategoryBreakdown: isKumtluang ? breakdown : undefined,
+    };
+
+    onSave(updated);
+  };
+
+  const handleDeleteClick = () => {
+    if (window.confirm(`I chiang maw? He transaction (Donor: ${transaction.donorName}, Amount: ₹${transaction.amount}) hi paih hlen a ni dawn e.`)) {
+      onDelete(transaction.id);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn">
+      <div className="bg-white rounded-3xl max-w-md w-full p-5 border border-slate-200 shadow-2xl space-y-4 my-auto">
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+              <Edit3 className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-black text-slate-900 text-sm">Mimal Donation Siamthatna</h3>
+              <p className="text-[10px] text-slate-500 font-medium font-mono">ID: {transaction.id}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3.5 text-xs max-h-[70vh] overflow-y-auto pr-1">
+          {/* Donor Name */}
+          <div>
+            <label className="text-[10.5px] font-bold text-slate-700 block mb-1">Petu Hming (Donor Name) *</label>
+            <input
+              type="text"
+              required
+              value={donorName}
+              onChange={(e) => setDonorName(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600"
+            />
+          </div>
+
+          {/* Anonymous toggle */}
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isAnonymous}
+              onChange={(e) => setIsAnonymous(e.target.checked)}
+              className="rounded text-indigo-600 focus:ring-indigo-500"
+            />
+            <span>Hming thup (Anonymous Donation)</span>
+          </label>
+
+          {/* KUMTLUANG SUB-CATEGORIES ALLOCATION */}
+          {isKumtluang ? (
+            <div className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-200 space-y-2.5">
+              <div className="flex items-center justify-between border-b border-blue-200 pb-1.5">
+                <span className="text-[11px] font-black text-blue-950 uppercase tracking-wider">
+                  Mimal Categories an pek dan (Breakdown)
+                </span>
+                <span className="text-[10px] font-black text-blue-700">
+                  Subtotal: ₹{currentSubtotal.toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              {/* Rows of categories */}
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {Object.entries(breakdown).map(([catName, amt]) => (
+                  <div key={catName} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-blue-200">
+                    <span className="flex-1 font-bold text-slate-900 truncate text-[11px]">{catName}</span>
+                    <div className="flex items-center gap-1 w-28 shrink-0">
+                      <span className="text-slate-500 font-bold text-xs">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={amt === 0 ? '' : amt}
+                        onChange={(e) => handleAmountChange(catName, e.target.value)}
+                        placeholder="0"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 font-mono font-bold text-right text-slate-900 text-xs focus:bg-white focus:border-indigo-600"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCategory(catName)}
+                      className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                      title="Remove head"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add category head */}
+              <div className="flex gap-1.5 pt-1.5 border-t border-blue-200">
+                <input
+                  type="text"
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  placeholder="Category Head thar..."
+                  className="flex-1 bg-white border border-blue-300 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-900"
+                />
+                <input
+                  type="number"
+                  value={newCatAmount}
+                  onChange={(e) => setNewCatAmount(e.target.value)}
+                  placeholder="Amount ₹"
+                  className="w-24 bg-white border border-blue-300 rounded-xl px-2 py-1.5 text-xs font-mono font-bold text-right"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCategory}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-2.5 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Belh
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Flat amount for Ralna, Khawlsak, Rikrum */
+            <div>
+              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">Pek Zat (Amount ₹) *</label>
+              <input
+                type="number"
+                required
+                value={flatAmount}
+                onChange={(e) => setFlatAmount(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-mono font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600"
+              />
+            </div>
+          )}
+
+          {/* Payment Method & Status */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">Payment Mode</label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as any)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-slate-900"
+              >
+                <option value="online">Online UPI</option>
+                <option value="cash">Cash Counter</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[10.5px] font-bold text-slate-700 block mb-1">Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as any)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-slate-900"
+              >
+                <option value="completed">Completed</option>
+                <option value="pending_verification">Pending Verification</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Total calculations badge */}
+          <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
+            <span className="font-bold text-slate-700">Calculated Total:</span>
+            <span className="font-black font-mono text-indigo-900 text-sm">
+              ₹{currentSubtotal.toLocaleString('en-IN')}
+            </span>
+          </div>
+
+          {/* Actions: Save & Delete */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition cursor-pointer text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-2.5 rounded-xl transition cursor-pointer text-xs shadow-md flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" /> Save Siamthatna
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleDeleteClick}
+              className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-2 rounded-xl transition cursor-pointer text-xs flex items-center justify-center gap-1 border border-rose-200"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> He Transaction Record hi paih rawh (Delete)
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

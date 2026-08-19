@@ -1,0 +1,148 @@
+export type BawmCategory = 'ralna' | 'khawlsak' | 'rikrum' | 'kumtluang' | 'others';
+
+export type PaymentMethod = 'online' | 'cash';
+
+export type ScreenId = 
+  | 'screen-home' 
+  | 'screen-bawm-explorer'
+  | 'screen-checkout' 
+  | 'screen-create-qr' 
+  | 'screen-creator-reg'
+  | 'screen-export-reports'
+  | 'screen-cash-pending' 
+  | 'screen-success';
+
+export interface BawmInfo {
+  key: BawmCategory;
+  name: string;
+  subtitle: string;
+  icon: string;
+  themeColor: 'purple' | 'emerald' | 'rose' | 'blue' | 'slate' | 'red';
+  bgLight: string;
+  borderLight: string;
+  textDark: string;
+  accent: string;
+}
+
+export interface Campaign {
+  id: string;
+  category: BawmCategory;
+  title: string;
+  subTitle?: string;
+  location: string;
+  gpsCoords: string;
+  upiId: string;
+  imageUrl?: string;
+  validityDate: string;
+  status: 'active' | 'pending_approval' | 'expired';
+  createdAt: string;
+  createdBy?: string; // Phone or Creator Name
+  
+  // Ralna specific
+  mitthiHming?: string;
+  age?: number;
+  thihni?: string;
+  vuiHun?: string;
+  vuitu?: string;
+  
+  // Khawlsak specific
+  cause?: string;
+  targetAmount?: number;
+  maxLimit?: number;
+  
+  // Rikrum specific
+  emergencyTitle?: string;
+  urgencyLevel?: 'URGENT' | 'CRITICAL' | 'NORMAL';
+  urgencyDeadline?: string;
+  
+  // Kumtluang specific
+  orgName?: string;
+  subCategories?: string[];
+  trxnFeeBearer?: 'user_paid' | 'org_paid';
+}
+
+export interface Transaction {
+  id: string;
+  campaignId: string;
+  campaignTitle: string;
+  category: BawmCategory;
+  donorName: string;
+  isAnonymous: boolean;
+  amount: number;
+  platformFee: number;
+  totalAmount: number;
+  paymentMethod: PaymentMethod;
+  status: 'completed' | 'pending_verification';
+  subCategoryBreakdown?: { [key: string]: number };
+  periodType?: 'monthly' | 'quarterly' | 'yearly';
+  periodLabel?: string;
+  timestamp: string;
+  txHash: string;
+}
+
+export interface CreatorProfile {
+  name: string;
+  orgName: string;
+  designation: string;
+  phone: string;
+  isPhoneVerified: boolean;
+  isApproved: boolean;
+  approvedCategories: BawmCategory[];
+  createdQRsCount: number;
+  trialExpiresAt?: string;
+  subscriptionExpiresAt?: string;
+  subscriptionPlan?: 'free_trial' | 'monthly' | 'quarterly' | 'halfYearly' | 'yearly';
+  registeredAt?: string;
+  authDocName?: string;
+  customDiscountPercent?: number;
+  customTrialDays?: number;
+  isFreeServiceGranted?: boolean;
+}
+
+export interface BawmFeeRule {
+  category: BawmCategory;
+  name: string;
+  platformFeePercent: number; // e.g. 1.0 = 1%
+  platformFeeFixed: number; // e.g. ₹0
+  qrCreationCharge: number; // e.g. ₹99 or ₹0
+  qrPrintProcessingCharge: number; // e.g. ₹49 or ₹0
+  trialPeriodDays: number; // e.g. 30 days
+  discountPercent: number; // e.g. 0 to 100%
+  discountFlatAmount: number; // e.g. ₹0
+  isFreeTrialActive: boolean; // 100% Free Trial toggle
+  trialDescription: string;
+  
+  // Khawlsak & general recurring / subscription rates
+  subscriptionRates?: {
+    monthly: number; // e.g. ₹99
+    quarterly: number; // e.g. ₹249
+    halfYearly: number; // e.g. ₹449
+    yearly: number; // e.g. ₹799
+    customPromoDiscount: number; // %
+  };
+  
+  // Volume tiered slab rates
+  volumeSlabs?: {
+    upToAmount: number;
+    feePercent: number;
+    label: string;
+  }[];
+}
+
+export interface SystemPricingConfig {
+  globalDiscountPercent: number;
+  globalTrialDays: number;
+  categories: Record<BawmCategory, BawmFeeRule>;
+  lastUpdated: string;
+  updatedBy: string;
+}
+
+export interface BillService {
+  id: string;
+  name: string;
+  icon: string;
+  category: string;
+  bgColor: string;
+  textColor: string;
+  fields: { name: string; label: string; placeholder: string; type: string }[];
+}
