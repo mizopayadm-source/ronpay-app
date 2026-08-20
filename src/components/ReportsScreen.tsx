@@ -45,7 +45,6 @@ import {
   printTransactionsPDF, 
   buildKumtluangMatrix,
   computeMonthlyDistribution,
-  MonthRangePreset,
   MonthRangeConfig,
   ALL_MONTH_NAMES_SHORT
 } from '../utils/export';
@@ -787,71 +786,38 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 
                     {includeMonthlyChart && (
                       <div className="pt-2 border-t border-slate-100 pl-6 space-y-2.5">
-                        <div>
-                          <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                            Month Range / Hun Thlanna (Single Month / Range / Presets):
-                          </label>
-                          <select
-                            value={chartMonthRangePreset}
-                            onChange={(e) => setChartMonthRangePreset(e.target.value as MonthRangePreset)}
-                            className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-indigo-600"
-                          >
-                            <option value="apr-mar">April – March (Financial Year / Kumtluang)</option>
-                            <option value="jan-dec">January – December (Calendar Year)</option>
-                            <option value="single">Single Month (Thla Khat Chauh thlanna)</option>
-                            <option value="custom">Month Start & End (Hun intanna leh tawpna thlanna)</option>
-                            <option value="jan-mar">January – March (Q1 / First Quarter)</option>
-                            <option value="apr-jun">April – June (Q2 / Second Quarter)</option>
-                            <option value="jul-sep">July – September (Q3 / Third Quarter)</option>
-                            <option value="oct-dec">October – December (Q4 / Fourth Quarter)</option>
-                          </select>
-                        </div>
-
-                        {chartMonthRangePreset === 'single' && (
-                          <div className="bg-amber-50/60 p-2.5 rounded-lg border border-amber-200/80 space-y-1.5">
-                            <label className="text-[10px] font-bold text-amber-950 block">
-                              Thla Khat Chauh (Select Single Month):
-                            </label>
+                        <label className="text-[10.5px] font-bold text-slate-700 block">
+                          Thla Tin Trend Hun Thlanna (From – Upto):
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100">
+                          <div>
+                            <label className="text-[10px] font-bold text-indigo-950 block mb-1">From (Start Month)</label>
                             <select
-                              value={chartSingleMonth}
-                              onChange={(e) => setChartSingleMonth(e.target.value)}
-                              className="w-full bg-white border border-amber-300 rounded-md p-1.5 text-xs font-bold text-slate-900"
+                              value={chartStartMonth}
+                              onChange={(e) => setChartStartMonth(e.target.value)}
+                              className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
                             >
                               {ALL_MONTH_NAMES_SHORT.map(m => (
                                 <option key={m} value={m}>{m}</option>
                               ))}
                             </select>
                           </div>
-                        )}
-
-                        {chartMonthRangePreset === 'custom' && (
-                          <div className="grid grid-cols-2 gap-2 bg-indigo-50/50 p-2 rounded-lg border border-indigo-100">
-                            <div>
-                              <label className="text-[10px] font-bold text-indigo-950 block mb-1">Start Month</label>
-                              <select
-                                value={chartStartMonth}
-                                onChange={(e) => setChartStartMonth(e.target.value)}
-                                className="w-full bg-white border border-indigo-200 rounded-md p-1.5 text-xs font-bold text-slate-900"
-                              >
-                                {ALL_MONTH_NAMES_SHORT.map(m => (
-                                  <option key={m} value={m}>{m}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-indigo-950 block mb-1">End Month</label>
-                              <select
-                                value={chartEndMonth}
-                                onChange={(e) => setChartEndMonth(e.target.value)}
-                                className="w-full bg-white border border-indigo-200 rounded-md p-1.5 text-xs font-bold text-slate-900"
-                              >
-                                {ALL_MONTH_NAMES_SHORT.map(m => (
-                                  <option key={m} value={m}>{m}</option>
-                                ))}
-                              </select>
-                            </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-indigo-950 block mb-1">Upto (End Month)</label>
+                            <select
+                              value={chartEndMonth}
+                              onChange={(e) => setChartEndMonth(e.target.value)}
+                              className="w-full bg-white border border-indigo-200 rounded-lg p-1.5 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                            >
+                              {ALL_MONTH_NAMES_SHORT.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                            </select>
                           </div>
-                        )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-medium italic">
+                          * Thla khat chauh duh tan <b>From</b> leh <b>Upto</b>-ah thla ngai thlan mai tur (e.g. From: Aug, Upto: Aug)
+                        </p>
                       </div>
                     )}
                   </div>
