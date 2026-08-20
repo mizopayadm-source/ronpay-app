@@ -23,7 +23,9 @@ import {
   MapPin,
   ExternalLink,
   Info,
-  Receipt
+  Receipt,
+  GraduationCap,
+  Shield
 } from 'lucide-react';
 import { BillService } from '../types';
 import { Language, TRANSLATIONS } from '../utils/translations';
@@ -113,6 +115,29 @@ const TAX_TYPES = [
   'Building Permission Fee'
 ];
 
+const SCHOOL_COLLEGES = [
+  'Mizoram University (MZU)',
+  'Pachhunga University College (PUC)',
+  "St. Paul's Higher Secondary School, Aizawl",
+  'Don Bosco School, Aizawl',
+  'Govt. Aizawl College',
+  'Govt. Hrangbana College',
+  'Govt. Zirtiri Residential Science College',
+  'Baptist Higher Secondary School (BHSS), Serkawn',
+  'Home Missions School, Aizawl',
+  'Presbyterian English School (PES)'
+];
+
+const INSURANCE_PROVIDERS = [
+  'Life Insurance Corporation of India (LIC)',
+  'SBI Life Insurance',
+  'HDFC Life Insurance',
+  'Star Health and Allied Insurance',
+  'ICICI Prudential / Lombard',
+  'Max Life Insurance',
+  'Bajaj Allianz Life'
+];
+
 export const BillPaymentModal: React.FC<BillPaymentModalProps> = ({
   service,
   onClose,
@@ -170,6 +195,17 @@ export const BillPaymentModal: React.FC<BillPaymentModalProps> = ({
   // Bus ticket states
   const [busRoute, setBusRoute] = useState<string>('Aizawl -> Lunglei (MST Night Service)');
   const [passengerName, setPassengerName] = useState<string>('C. Lalrindika');
+
+  // School / College Fees states
+  const [institution, setInstitution] = useState<string>(SCHOOL_COLLEGES[0]);
+  const [studentId, setStudentId] = useState<string>('MZU-2024-8192');
+  const [studentName, setStudentName] = useState<string>('Lalremruata Ralte');
+  const [feeCategory, setFeeCategory] = useState<string>('Semester Tuition & Exam Fee');
+
+  // Insurance states
+  const [insuranceProvider, setInsuranceProvider] = useState<string>(INSURANCE_PROVIDERS[0]);
+  const [policyNo, setPolicyNo] = useState<string>('LIC-984210384');
+  const [policyHolderDob, setPolicyHolderDob] = useState<string>('15/06/1992');
 
   // Live Bill Fetch status & detail payload
   const [linkedBillData, setLinkedBillData] = useState<{
@@ -283,6 +319,39 @@ export const BillPaymentModal: React.FC<BillPaymentModalProps> = ({
           subDivisionOrLocality: 'AMC Ward 12, Aizawl',
           portalUrl: 'https://amcmizoram.com',
           status: 'Holding Tax Assessment Live (AMC Server)'
+        });
+      } else if (type === 'school_fees') {
+        const liveBill = 3500;
+        setAmount(liveBill.toString());
+        setLinkedBillData({
+          consumerName: studentName || 'Lalremruata Ralte',
+          accountNo: idVal,
+          dueDate: '15/09/2026',
+          billAmount: liveBill,
+          subDivisionOrLocality: institution || 'Mizoram University (MZU)',
+          portalUrl: 'https://mzu.edu.in',
+          status: language === 'english' ? 'Student Enrollment Verified' : 'Zirlai Record Hmuh A Ni (School/College)',
+          breakdown: [
+            { label: 'Tuition Fee (Semester)', amount: 2800 },
+            { label: 'Library & Laboratory Fee', amount: 450 },
+            { label: 'Examination & Student Welfare', amount: 250 }
+          ]
+        });
+      } else if (type === 'insurance') {
+        const liveBill = 4500;
+        setAmount(liveBill.toString());
+        setLinkedBillData({
+          consumerName: 'Lalmuankima (Policyholder)',
+          accountNo: idVal,
+          dueDate: '28/09/2026',
+          billAmount: liveBill,
+          subDivisionOrLocality: insuranceProvider || 'LIC of India (Aizawl Branch)',
+          portalUrl: 'https://licindia.in',
+          status: language === 'english' ? 'Active Policy Verified' : 'Policy Nung Lai (Verified)',
+          breakdown: [
+            { label: 'Base Insurance Premium', amount: 4100 },
+            { label: 'GST (18% on applicable premium)', amount: 400 }
+          ]
         });
       }
     }, 450);
@@ -1271,6 +1340,248 @@ export const BillPaymentModal: React.FC<BillPaymentModalProps> = ({
               </div>
             )}
 
+            {/* 11. SCHOOL & COLLEGE FEES */}
+            {service.id === 'school_fees' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                    Educational Institution (School / College) *
+                  </label>
+                  <select
+                    value={institution}
+                    onChange={(e) => setInstitution(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:outline-none focus:border-indigo-600"
+                  >
+                    {SCHOOL_COLLEGES.map((sc) => (
+                      <option key={sc} value={sc}>{sc}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                    Student Roll Number / Enrollment ID *
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      value={studentId}
+                      onChange={(e) => setStudentId(e.target.value)}
+                      placeholder="e.g. MZU-2024-8192"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-indigo-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleFetchLiveBill('school_fees', studentId || 'MZU-2024-8192')}
+                      disabled={isFetchingBill}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-3 py-2 rounded-xl text-[11px] whitespace-nowrap transition cursor-pointer flex items-center gap-1 shadow-xs shrink-0"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>{isFetchingBill ? 'Checking...' : 'Check Dues'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                    Student Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    placeholder="Student full name"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-indigo-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                    Fee Head / Category *
+                  </label>
+                  <select
+                    value={feeCategory}
+                    onChange={(e) => setFeeCategory(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:outline-none focus:border-indigo-600"
+                  >
+                    <option value="Semester Tuition & Exam Fee">Semester Tuition & Exam Fee</option>
+                    <option value="Monthly School Fee">Monthly School Fee</option>
+                    <option value="Hostel & Mess Charges">Hostel & Mess Charges</option>
+                    <option value="Admission & Registration Fee">Admission & Registration Fee</option>
+                  </select>
+                </div>
+
+                {linkedBillData && (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3 space-y-1.5 text-indigo-950">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-extrabold flex items-center gap-1 text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-md">
+                        <CheckCircle2 className="w-3 h-3 text-indigo-600" /> {linkedBillData.status}
+                      </span>
+                      <span className="font-bold text-slate-500">Due: {linkedBillData.dueDate}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="font-black text-xs text-slate-900">{linkedBillData.consumerName}</h4>
+                        <p className="text-[10px] text-slate-600">{linkedBillData.subDivisionOrLocality}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9.5px] text-slate-500 font-bold block">Assessed Fee</span>
+                        <span className="text-sm font-black text-indigo-700">₹{linkedBillData.billAmount}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 block mb-1">Fee Amount (₹)</label>
+                  <input
+                    type="number"
+                    required
+                    value={amount || '3500'}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="e.g. 3500"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-black text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-indigo-600"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 12. INSURANCE & LIC PREMIUM */}
+            {service.id === 'insurance' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                    Insurance Corporation / Provider *
+                  </label>
+                  <select
+                    value={insuranceProvider}
+                    onChange={(e) => setInsuranceProvider(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:outline-none focus:border-blue-600"
+                  >
+                    {INSURANCE_PROVIDERS.map((ins) => (
+                      <option key={ins} value={ins}>{ins}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                    Policy Number *
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      required
+                      value={policyNo}
+                      onChange={(e) => setPolicyNo(e.target.value)}
+                      placeholder="Enter 9-10 digit Policy Number"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-blue-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleFetchLiveBill('insurance', policyNo || 'LIC-984210384')}
+                      disabled={isFetchingBill}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-black px-3 py-2 rounded-xl text-[11px] whitespace-nowrap transition cursor-pointer flex items-center gap-1 shadow-xs shrink-0"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>{isFetchingBill ? 'Validating...' : 'Fetch Premium'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                    Policyholder Date of Birth (DD/MM/YYYY) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={policyHolderDob}
+                    onChange={(e) => setPolicyHolderDob(e.target.value)}
+                    placeholder="DD/MM/YYYY"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-blue-600"
+                  />
+                </div>
+
+                {linkedBillData && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 space-y-1.5 text-blue-950">
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="font-extrabold flex items-center gap-1 text-blue-800 bg-blue-100 px-2 py-0.5 rounded-md">
+                        <CheckCircle2 className="w-3 h-3 text-blue-600" /> {linkedBillData.status}
+                      </span>
+                      <span className="font-bold text-slate-500">Due: {linkedBillData.dueDate}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h4 className="font-black text-xs text-slate-900">{linkedBillData.consumerName}</h4>
+                        <p className="text-[10px] text-slate-600">{linkedBillData.subDivisionOrLocality}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9.5px] text-slate-500 font-bold block">Due Premium</span>
+                        <span className="text-sm font-black text-blue-700">₹{linkedBillData.billAmount}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-700 block mb-1">Premium Amount (₹)</label>
+                  <input
+                    type="number"
+                    required
+                    value={amount || '4500'}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="e.g. 4500"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-black text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-blue-600"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Direct UPI Apps Quick Option */}
+            <div className="space-y-1.5 pt-1">
+              <span className="text-[10px] font-bold text-slate-600 block">
+                Direct UPI Apps (Instant Launch):
+              </span>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const payAmt = amount || (linkedBillData ? linkedBillData.billAmount.toString() : '500');
+                    const upiString = `upi://pay?pa=ronpay.bbps@axl&pn=${encodeURIComponent(service.name)}&am=${payAmt}&cu=INR&tn=${encodeURIComponent(`Bill:${service.id}`)}`;
+                    window.location.href = upiString;
+                  }}
+                  className="bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 font-bold text-[10px] py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 transition cursor-pointer"
+                >
+                  <span>PhonePe</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const payAmt = amount || (linkedBillData ? linkedBillData.billAmount.toString() : '500');
+                    const upiString = `upi://pay?pa=ronpay.bbps@axl&pn=${encodeURIComponent(service.name)}&am=${payAmt}&cu=INR&tn=${encodeURIComponent(`Bill:${service.id}`)}`;
+                    window.location.href = upiString;
+                  }}
+                  className="bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-900 font-bold text-[10px] py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 transition cursor-pointer"
+                >
+                  <span>Paytm</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const payAmt = amount || (linkedBillData ? linkedBillData.billAmount.toString() : '500');
+                    const upiString = `upi://pay?pa=ronpay.bbps@axl&pn=${encodeURIComponent(service.name)}&am=${payAmt}&cu=INR&tn=${encodeURIComponent(`Bill:${service.id}`)}`;
+                    window.location.href = upiString;
+                  }}
+                  className="bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 font-bold text-[10px] py-1.5 px-2 rounded-xl flex items-center justify-center gap-1 transition cursor-pointer"
+                >
+                  <span>Google Pay</span>
+                </button>
+              </div>
+            </div>
+
             {/* BBPS Assurance Strip */}
             <div className="p-2.5 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between text-[10px] text-slate-500 font-medium">
               <span className="flex items-center gap-1.5 text-slate-700 font-bold">
@@ -1351,6 +1662,20 @@ export const BillPaymentModal: React.FC<BillPaymentModalProps> = ({
                 <div className="flex justify-between items-center text-slate-600">
                   <span className="text-[10.5px]">PHE Connection:</span>
                   <span className="font-bold text-slate-900">{waterConsumerId}</span>
+                </div>
+              )}
+
+              {service.id === 'school_fees' && (
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="text-[10.5px]">Student & School:</span>
+                  <span className="font-bold text-slate-900">{studentName} ({institution})</span>
+                </div>
+              )}
+
+              {service.id === 'insurance' && (
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="text-[10.5px]">Policy & Provider:</span>
+                  <span className="font-bold text-slate-900">{policyNo} ({insuranceProvider})</span>
                 </div>
               )}
 

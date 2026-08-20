@@ -10,7 +10,8 @@ import {
   Loader2, 
   History, 
   RotateCw,
-  WifiOff
+  WifiOff,
+  ShieldCheck
 } from 'lucide-react';
 import { ScreenId } from '../types';
 import { Language } from '../utils/translations';
@@ -27,7 +28,6 @@ interface HeaderProps {
   language: Language;
   onToggleLanguage: (lang: Language) => void;
   onOpenHistory: () => void;
-  onOpenAdmin?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -54,6 +54,39 @@ export const Header: React.FC<HeaderProps> = ({
   const [isOnline, setIsOnline] = useState<boolean>(() => {
     return typeof navigator !== 'undefined' ? navigator.onLine : true;
   });
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
+  const [searchLocText, setSearchLocText] = useState<string>('');
+
+  const MIZORAM_LOCATIONS = [
+    'Aizawl, Mizoram',
+    'Chanmari, Aizawl',
+    'Mission Veng, Aizawl',
+    'Khatla, Aizawl',
+    'Dawrpui, Aizawl',
+    'Bawngkawn, Aizawl',
+    'Kulikawn, Aizawl',
+    'Ramhlun, Aizawl',
+    'Zarkawt, Aizawl',
+    'Tuikual, Aizawl',
+    'Lunglei, Mizoram',
+    'Bazar Veng, Lunglei',
+    'Venglai, Lunglei',
+    'Champhai, Mizoram',
+    'Kolasib, Mizoram',
+    'Serchhip, Mizoram',
+    'Siaha, Mizoram',
+    'Lawngtlai, Mizoram',
+    'Mamit, Mizoram',
+    'Saitual, Mizoram',
+    'Khawzawl, Mizoram',
+    'Hnahthial, Mizoram',
+  ];
+
+  const handleSelectLocation = (loc: string) => {
+    setUserLocation(loc);
+    localStorage.setItem('kut_app_user_location', loc);
+    setIsLocationModalOpen(false);
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -239,10 +272,10 @@ export const Header: React.FC<HeaderProps> = ({
               <div 
                 onClick={(e) => {
                   e.stopPropagation();
-                  triggerLiveGPS();
+                  setIsLocationModalOpen(true);
                 }}
                 className="hidden sm:flex text-xs text-slate-400 font-medium items-center gap-1.5 hover:text-amber-300 transition cursor-pointer mt-0.5 group"
-                title="Click to auto-detect User GPS"
+                title="Click to select or change location"
               >
                 {isLocating ? (
                   <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
@@ -252,7 +285,16 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="truncate max-w-[220px] font-bold text-slate-200 text-xs">
                   {userLocation}
                 </span>
-                <RotateCw className="w-2.5 h-2.5 text-slate-500 opacity-70 group-hover:opacity-100 group-hover:rotate-180 transition-all shrink-0" />
+                <span 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerLiveGPS();
+                  }}
+                  title="Auto-detect phone GPS"
+                  className="p-1 hover:text-amber-400"
+                >
+                  <RotateCw className="w-2.5 h-2.5 text-slate-500 opacity-70 group-hover:opacity-100 group-hover:rotate-180 transition-all shrink-0" />
+                </span>
               </div>
             </div>
           </button>
@@ -313,21 +355,31 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Mobile Bottom Sub-Bar: Full-Width Balanced Grid with Live GPS on Left, History & Reports on Right */}
         <div className="w-full flex sm:hidden items-center justify-between bg-slate-900/90 backdrop-blur-xs border border-slate-800/80 rounded-xl px-2.5 py-1.5 gap-2 shadow-inner">
           {/* User's GPS Auto-Detect on Left */}
-          <button 
-            onClick={triggerLiveGPS}
+          <div 
+            onClick={() => setIsLocationModalOpen(true)}
             className="flex items-center gap-1.5 min-w-0 text-slate-300 hover:text-amber-300 transition cursor-pointer group text-left"
-            title="Click to auto-detect User GPS"
+            title="Click to select or change location"
           >
             {isLocating ? (
               <Loader2 className="w-3 h-3 text-amber-400 animate-spin shrink-0" />
             ) : (
               <MapPin className="w-3 h-3 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
             )}
-            <span className="truncate max-w-[140px] xs:max-w-[170px] font-semibold text-slate-200 text-[11px]">
+            <span className="truncate max-w-[130px] xs:max-w-[160px] font-semibold text-slate-200 text-[11px]">
               {userLocation}
             </span>
-            <RotateCw className={`w-2.5 h-2.5 text-slate-500 opacity-70 group-hover:opacity-100 transition-all shrink-0 ${isLocating ? 'animate-spin' : ''}`} />
-          </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                triggerLiveGPS();
+              }}
+              title="Auto-detect phone GPS"
+              className="p-1 hover:text-amber-400 cursor-pointer"
+            >
+              <RotateCw className={`w-2.5 h-2.5 text-slate-500 opacity-70 group-hover:opacity-100 transition-all shrink-0 ${isLocating ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
 
           {/* Quick Navigation: Sulhnu (History) & Reports on Right */}
           <div className="flex items-center gap-1.5 shrink-0">
@@ -429,6 +481,77 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Location Selector Modal */}
+      {isLocationModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-xs z-50 flex items-center justify-center p-3 text-slate-800 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-4 shadow-2xl border border-indigo-100 space-y-3">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    {language === 'english' ? 'Select Location' : 'Awmnah Hmun Thlang Rawh'}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-medium">Mizoram Veng / District</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLocationModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-700 flex items-center justify-center cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* GPS Auto-Detect Button */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerLiveGPS();
+                setIsLocationModalOpen(false);
+              }}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-xs"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+              <span>{language === 'english' ? 'Auto-Detect Phone GPS' : 'Phone GPS hmangin zawng rawh'}</span>
+            </button>
+
+            {/* Search Input */}
+            <input
+              type="text"
+              value={searchLocText}
+              onChange={(e) => setSearchLocText(e.target.value)}
+              placeholder="Search Veng / District (e.g. Chanmari, Lunglei)..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-amber-500"
+            />
+
+            {/* Location List */}
+            <div className="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+              {MIZORAM_LOCATIONS
+                .filter(l => l.toLowerCase().includes(searchLocText.toLowerCase()))
+                .map((loc) => (
+                  <button
+                    key={loc}
+                    type="button"
+                    onClick={() => handleSelectLocation(loc)}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-between cursor-pointer ${
+                      userLocation === loc
+                        ? 'bg-amber-100 text-amber-950 border border-amber-300'
+                        : 'bg-slate-50 hover:bg-indigo-50 text-slate-700'
+                    }`}
+                  >
+                    <span>{loc}</span>
+                    {userLocation === loc && <span className="text-[10px] text-amber-700 font-black">✓ Active</span>}
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

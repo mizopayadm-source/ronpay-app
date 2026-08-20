@@ -476,6 +476,35 @@ export const BILL_SERVICES: BillService[] = [
     ],
   },
   {
+    id: 'school_fees',
+    name: 'School & College Fees',
+    icon: 'GraduationCap',
+    category: 'Education',
+    bgColor: 'bg-indigo-50/90 text-indigo-700',
+    textColor: 'text-indigo-700',
+    fields: [
+      { name: 'institution', label: 'School / College / University', placeholder: 'MZU / PUC / St. Paul / Don Bosco / Govt College', type: 'select' },
+      { name: 'studentId', label: 'Student Roll No / Enrollment ID', placeholder: 'Enter Student ID or Roll No', type: 'text' },
+      { name: 'studentName', label: 'Student Full Name', placeholder: 'Student Name as per School Register', type: 'text' },
+      { name: 'feeType', label: 'Fee Category / Semester', placeholder: 'Tuition / Exam / Admission / Hosteller', type: 'select' },
+      { name: 'amount', label: 'Fee Amount (₹)', placeholder: 'e.g. 3500', type: 'number' },
+    ],
+  },
+  {
+    id: 'insurance',
+    name: 'Insurance & LIC Premium',
+    icon: 'Shield',
+    category: 'Finance & Insurance',
+    bgColor: 'bg-blue-50/90 text-blue-700',
+    textColor: 'text-blue-700',
+    fields: [
+      { name: 'insurer', label: 'Insurance Company', placeholder: 'LIC of India / SBI Life / HDFC Life / Star Health', type: 'select' },
+      { name: 'policyNo', label: 'Policy Number', placeholder: 'Enter 9-10 digit Policy Number', type: 'text' },
+      { name: 'dob', label: 'Policyholder Date of Birth', placeholder: 'DD/MM/YYYY', type: 'text' },
+      { name: 'amount', label: 'Premium Amount (₹)', placeholder: 'e.g. 4500', type: 'number' },
+    ],
+  },
+  {
     id: 'loan',
     name: 'Loan EMI Payment',
     icon: 'CreditCard',
@@ -604,6 +633,11 @@ export const INITIAL_REGISTERED_CREATORS: CreatorProfile[] = [
     registeredAt: new Date(now - 28 * oneDayMs).toISOString(),
     customDiscountPercent: 0,
     isFreeServiceGranted: false,
+    categoryCustomOverrides: {
+      ralna: { isTrialActive: true, platformFeePercent: 0 },
+      rikrum: { isTrialActive: false, platformFeePercent: 1.0 },
+      khawlsak: { isTrialActive: false, platformFeePercent: 0.5 },
+    },
   },
   {
     name: 'Lalhmangaihi Sailo',
@@ -620,6 +654,10 @@ export const INITIAL_REGISTERED_CREATORS: CreatorProfile[] = [
     registeredAt: new Date(now - 25 * oneDayMs).toISOString(),
     customDiscountPercent: 10,
     isFreeServiceGranted: false,
+    categoryCustomOverrides: {
+      ralna: { isTrialActive: true, platformFeePercent: 0 },
+      rikrum: { isTrialActive: true, platformFeePercent: 0 },
+    },
   },
   {
     name: 'K. Laldinpuia',

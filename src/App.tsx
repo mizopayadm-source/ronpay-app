@@ -196,6 +196,26 @@ export default function App() {
     saveStoredPricingConfig(pricingConfig);
   }, [pricingConfig]);
 
+  // Handle shared campaign URL query parameters on startup
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlCampaignId = params.get('campaignId');
+      if (urlCampaignId) {
+        const found = campaigns.find(
+          c => c.id === urlCampaignId || c.id.toLowerCase() === urlCampaignId.toLowerCase()
+        );
+        if (found) {
+          setSelectedCampaign(found);
+          setCurrentCategory(found.category);
+          setCurrentScreen('screen-checkout');
+        }
+      }
+    } catch (e) {
+      console.error('Error handling campaign URL param:', e);
+    }
+  }, []);
+
   // Navigate to screen
   const navigateTo = (screen: ScreenId) => {
     setCurrentScreen(screen);
@@ -339,6 +359,11 @@ export default function App() {
   const handleRegistrationSuccess = (updatedProfile: CreatorProfile, selectedCat: BawmCategory) => {
     setCreatorProfile(updatedProfile);
     saveStoredCreatorProfile(updatedProfile);
+    if (updatedProfile.isAdmin || updatedProfile.phone === 'admin') {
+      setIsAdminDashboardOpen(true);
+      navigateTo('screen-admin');
+      return;
+    }
     setCurrentCategory(selectedCat);
     navigateTo('screen-create-qr');
   };
@@ -522,7 +547,6 @@ export default function App() {
           language={language}
           onToggleLanguage={handleToggleLanguage}
           onOpenHistory={handleOpenSecureHistory}
-          onOpenAdmin={() => setIsAdminDashboardOpen(true)}
         />
 
         {/* Scrollable Main Body */}
@@ -600,6 +624,7 @@ export default function App() {
               onOpenUpgradeModal={() => setIsUpgradeModalOpen(true)}
               creatorProfile={creatorProfile}
               pricingConfig={pricingConfig}
+              announcement={announcement}
               onGenerateQR={handleGenerateQR}
               onLogout={handleCreatorLogout}
               campaigns={campaigns}
@@ -796,8 +821,13 @@ export default function App() {
 
         {/* Secure Admin Dashboard Modal */}
         <AdminDashboardModal
-          isOpen={isAdminDashboardOpen}
-          onClose={() => setIsAdminDashboardOpen(false)}
+          isOpen={isAdminDashboardOpen || currentScreen === 'screen-admin'}
+          onClose={() => {
+            setIsAdminDashboardOpen(false);
+            if (currentScreen === 'screen-admin') {
+              navigateTo('screen-home');
+            }
+          }}
           campaigns={campaigns}
           transactions={transactions}
           creators={(() => {

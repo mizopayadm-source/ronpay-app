@@ -10,7 +10,8 @@ export type ScreenId =
   | 'screen-creator-reg'
   | 'screen-export-reports'
   | 'screen-cash-pending' 
-  | 'screen-success';
+  | 'screen-success'
+  | 'screen-admin';
 
 export interface BawmInfo {
   key: BawmCategory;
@@ -62,6 +63,10 @@ export interface Campaign {
   orgName?: string;
   subCategories?: string[];
   trxnFeeBearer?: 'user_paid' | 'org_paid';
+  
+  // Per-Campaign / Per-Creator Category Rate Overrides
+  customPlatformFeePercent?: number;
+  customFreeTrialActive?: boolean;
 }
 
 export interface Transaction {
@@ -88,8 +93,11 @@ export interface CreatorProfile {
   orgName: string;
   designation: string;
   phone: string;
+  password?: string;
+  pin?: string;
   isPhoneVerified: boolean;
   isApproved: boolean;
+  isAdmin?: boolean;
   isBlocked?: boolean;
   rejectionReason?: string;
   approvedCategories: BawmCategory[];
@@ -100,8 +108,20 @@ export interface CreatorProfile {
   registeredAt?: string;
   authDocName?: string;
   customDiscountPercent?: number;
+  customPlatformFeePercent?: number; // Global creator platform fee %
   customTrialDays?: number;
+  freePostsQuota?: number; // Total free QR posts quota allowed
+  freePostsUsed?: number; // How many free QR posts used
   isFreeServiceGranted?: boolean;
+  rankPoints?: number;
+  // Per-Category Custom Overrides for this specific creator (e.g. Mr A can have 0% on Ralna and 0.5% on Rikrum)
+  categoryCustomOverrides?: Partial<Record<BawmCategory, {
+    isTrialActive?: boolean;
+    platformFeePercent?: number; // custom % for this specific category
+    qrCreationCharge?: number;
+    freePostsQuota?: number;
+    notes?: string;
+  }>>;
 }
 
 export interface AuditLog {
@@ -122,6 +142,8 @@ export interface AnnouncementBanner {
   message: string;
   linkText?: string;
   linkAction?: string;
+  animationStyle?: 'marquee' | 'pulse' | 'static' | 'fade';
+  rotationSpeedSeconds?: number;
   createdAt: string;
   updatedAt?: string;
 }

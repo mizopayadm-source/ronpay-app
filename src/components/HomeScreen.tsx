@@ -552,31 +552,50 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 {/* Visual Progress Bar Section (Creator Only - Private to campaign creator) */}
                 {isOwner && (
                   <div className="bg-white/95 p-2 rounded-xl border border-indigo-100/90 space-y-1.5 shadow-2xs">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <div className="flex items-center gap-1 font-bold text-slate-700">
-                        <span className="font-black text-slate-900">₹{totalRaised.toLocaleString('en-IN')}</span>
-                        <span className="text-slate-400 font-normal">/ ₹{target.toLocaleString('en-IN')}</span>
-                        <span className="text-[7.5px] font-black uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded ml-1">
-                          {language === 'english' ? 'Creator Goal' : 'Creator View'}
-                        </span>
+                    {camp.category === 'ralna' ? (
+                      <div className="flex items-center justify-between text-[10px]">
+                        <div className="flex items-center gap-1 font-bold text-slate-700">
+                          <span className="font-black text-slate-900">₹{totalRaised.toLocaleString('en-IN')}</span>
+                          <span className="text-slate-500 font-medium">Pek tlingkhawm zat</span>
+                          <span className="text-[7.5px] font-black uppercase text-slate-700 bg-slate-100 border border-slate-200 px-1 py-0.2 rounded ml-1">
+                            {language === 'english' ? 'Creator Only' : 'Creator View'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] text-slate-600 font-bold bg-slate-50 border border-slate-200 px-1.5 py-0.2 rounded-md">
+                            {campTransactions.length} {campTransactions.length === 1 ? 'txn' : 'txns'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] text-slate-400 font-medium">
-                          {campTransactions.length} {campTransactions.length === 1 ? 'txn' : 'txns'}
-                        </span>
-                        <span className="font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-md text-[9.5px]">
-                          {percentage}%
-                        </span>
-                      </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <div className="flex items-center gap-1 font-bold text-slate-700">
+                            <span className="font-black text-slate-900">₹{totalRaised.toLocaleString('en-IN')}</span>
+                            <span className="text-slate-400 font-normal">/ ₹{target.toLocaleString('en-IN')}</span>
+                            <span className="text-[7.5px] font-black uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded ml-1">
+                              {language === 'english' ? 'Creator Goal' : 'Creator View'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-slate-400 font-medium">
+                              {campTransactions.length} {campTransactions.length === 1 ? 'txn' : 'txns'}
+                            </span>
+                            <span className="font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded-md text-[9.5px]">
+                              {percentage}%
+                            </span>
+                          </div>
+                        </div>
 
-                    {/* Progress Track */}
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden border border-slate-200/50">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
-                        style={{ width: `${clampedPercentage}%` }}
-                      />
-                    </div>
+                        {/* Progress Track */}
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden border border-slate-200/50">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
+                            style={{ width: `${clampedPercentage}%` }}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

@@ -126,7 +126,12 @@ export const getStoredCreatorProfile = (): CreatorProfile => {
   try {
     const raw = localStorage.getItem(CREATOR_PROFILE_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (parsed.orgName === 'RonPay HQ / Master Console') {
+        parsed.orgName = 'BCM Ebenezer';
+        saveStoredCreatorProfile(parsed);
+      }
+      return parsed;
     }
   } catch (e) {
     console.error('Failed to parse creator profile', e);

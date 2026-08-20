@@ -152,6 +152,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </button>
         )}
 
+        {/* Master Admin Console Trigger */}
+        {onOpenAdmin && (
+          <button
+            onClick={() => {
+              onClose();
+              onOpenAdmin();
+            }}
+            className="w-full bg-slate-900 hover:bg-slate-800 border border-amber-400/40 text-amber-300 p-2.5 rounded-2xl flex items-center justify-between text-xs font-bold transition cursor-pointer shadow-xs"
+          >
+            <span className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-amber-400" />
+              RonPay Admin Console
+            </span>
+            <span className="text-[9.5px] bg-amber-400/20 text-amber-300 border border-amber-400/40 px-2 py-0.5 rounded-full font-black uppercase">
+              Admin Login
+            </span>
+          </button>
+        )}
+
         {/* Creator Session Login / Logout Action */}
         {creatorProfile.isApproved ? (
           onLogout && (

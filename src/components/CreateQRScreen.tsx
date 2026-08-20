@@ -29,9 +29,10 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  HelpCircle
+  HelpCircle,
+  Megaphone
 } from 'lucide-react';
-import { BawmCategory, Campaign, CreatorProfile, SystemPricingConfig, Transaction } from '../types';
+import { BawmCategory, Campaign, CreatorProfile, SystemPricingConfig, Transaction, AnnouncementBanner } from '../types';
 import { BAWM_CONFIG, DEFAULT_PRICING_CONFIG } from '../data/initialData';
 import { formatDateDDMMYYYY, formatDateTimeDDMMYYYY, isCampaignExpired, getCreatorExpiryStatus } from '../utils/date';
 import { TrialWarningBanner } from './TrialWarningBanner';
@@ -41,6 +42,7 @@ interface CreateQRScreenProps {
   onOpenUpgradeModal: () => void;
   creatorProfile: CreatorProfile;
   pricingConfig?: SystemPricingConfig;
+  announcement?: AnnouncementBanner;
   onGenerateQR: (campaign: Campaign) => void;
   onLogout?: () => void;
   campaigns?: Campaign[];
@@ -54,6 +56,7 @@ export const CreateQRScreen: React.FC<CreateQRScreenProps> = ({
   onOpenUpgradeModal,
   creatorProfile,
   pricingConfig = DEFAULT_PRICING_CONFIG,
+  announcement,
   onGenerateQR,
   onLogout,
   campaigns = [],
@@ -334,6 +337,14 @@ export const CreateQRScreen: React.FC<CreateQRScreenProps> = ({
       orgName: selectedCategory === 'kumtluang' ? kumtluangOrg : undefined,
       subCategories: selectedCategory === 'kumtluang' ? kumtluangSubcats : undefined,
       trxnFeeBearer: selectedCategory === 'kumtluang' ? kumtluangFeeBearer : undefined,
+
+      // Per-Creator Category Rate Overrides (e.g. Mr A Ralna=0%, Rikrum=0.5%)
+      customPlatformFeePercent: creatorProfile.categoryCustomOverrides?.[selectedCategory]?.platformFeePercent !== undefined
+        ? creatorProfile.categoryCustomOverrides[selectedCategory]?.platformFeePercent
+        : creatorProfile.customPlatformFeePercent,
+      customFreeTrialActive: creatorProfile.categoryCustomOverrides?.[selectedCategory]?.isTrialActive !== undefined
+        ? creatorProfile.categoryCustomOverrides[selectedCategory]?.isTrialActive
+        : undefined,
     };
 
     onGenerateQR(newCampaign);
@@ -1030,18 +1041,82 @@ export const CreateQRScreen: React.FC<CreateQRScreenProps> = ({
             </div>
           )}
 
-          {/* 5. QR Creation Fee Notice Box */}
-          <div className="bg-amber-50/90 p-3 rounded-2xl border border-amber-200 space-y-1.5 text-xs">
-            <div className="flex justify-between items-center font-black text-amber-950">
-              <span className="flex items-center gap-1.5">
-                <Receipt className="w-4 h-4 text-amber-600" /> QR Creation Charge:
-              </span>
-              <span className="text-amber-800 text-sm font-black">₹49.00 / QR</span>
-            </div>
-            <p className="text-[10px] text-amber-900/85 leading-relaxed font-medium">
-              * Note: Creator in QR Creator a nih atanga <b>thla 3/6</b> chhunga emaw, QR a siam <b>5 chin</b> chu Trial period angin free a ni thei ang; chu mi hnuah chuan QR pakhat siam manah <b>Rs 49/-</b> charge a ni ang.
-            </p>
-          </div>
+          {/* 5. QR Creation Fee Notice / Admin Notification Box */}
+          {(() => {
+            const currentFeeRule = pricingConfig?.categories?.[selectedCategory] || DEFAULT_PRICING_CONFIG.categories[selectedCategory];
+            const rawCreationCharge = currentFeeRule?.qrCreationCharge ?? 0;
+            
+            // Check dynamic per-creator trial expiration
+            const nowTime = Date.now();
+            const trialExpTime = creatorProfile.trialExpiresAt ? new Date(creatorProfile.trialExpiresAt).getTime() : 0;
+            const isTrialActiveByDate = creatorProfile.isFreeServiceGranted || (trialExpTime > nowTime);
+            
+            // Check per-creator post quota
+            const totalQuota = creatorProfile.freePostsQuota ?? 10;
+            const usedQuota = creatorProfile.freePostsUsed ?? creatorProfile.createdQRsCount ?? 0;
+            const remainingQuota = Math.max(0, totalQuota - usedQuota);
+            const hasRemainingQuota = remainingQuota > 0;
+
+            const isFreeTrial = currentFeeRule?.isFreeTrialActive || isTrialActiveByDate || hasRemainingQuota || creatorProfile.isFreeServiceGranted;
+            const actualCreationCharge = isFreeTrial ? 0 : rawCreationCharge;
+
+            return (
+              <div className="space-y-2">
+                {/* Admin Announcement / Notification if active */}
+                {announcement && announcement.isActive && (
+                  <div className="bg-indigo-50/90 p-3 rounded-2xl border border-indigo-200 space-y-1 text-xs">
+                    <div className="flex items-center gap-1.5 font-black text-indigo-950">
+                      <Megaphone className="w-4 h-4 text-indigo-600 animate-pulse" />
+                      <span>{announcement.title || 'Admin Official Notification'}</span>
+                    </div>
+                    <p className="text-[10.5px] text-indigo-900/90 leading-relaxed font-medium">
+                      {announcement.message}
+                    </p>
+                  </div>
+                )}
+
+                {/* QR Creation Fee & Per-Creator Quota Box */}
+                <div className="bg-amber-50/90 p-3 rounded-2xl border border-amber-200 space-y-2 text-xs">
+                  <div className="flex justify-between items-center font-black text-amber-950">
+                    <span className="flex items-center gap-1.5">
+                      <Receipt className="w-4 h-4 text-amber-600" /> QR Creation Charge ({BAWM_CONFIG[selectedCategory].name}):
+                    </span>
+                    <span className="text-amber-800 text-sm font-black">
+                      {actualCreationCharge === 0 ? 'FREE (Trial / Offer)' : `₹${actualCreationCharge.toFixed(2)} / QR`}
+                    </span>
+                  </div>
+
+                  {/* Dynamic Creator Benefits Indicator */}
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-200/70 text-[10.5px]">
+                    <div className="bg-white/80 p-2 rounded-xl border border-amber-200 flex flex-col">
+                      <span className="text-slate-500 font-bold">Creator Trial Status</span>
+                      <span className="font-black text-emerald-700 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-500" />
+                        {creatorProfile.isFreeServiceGranted 
+                          ? 'Lifetime Free VIP' 
+                          : isTrialActiveByDate 
+                          ? 'Active Dynamic Trial' 
+                          : 'Trial Ended'}
+                      </span>
+                    </div>
+
+                    <div className="bg-white/80 p-2 rounded-xl border border-amber-200 flex flex-col">
+                      <span className="text-slate-500 font-bold">Free Post Quota</span>
+                      <span className="font-black text-indigo-900">
+                        {creatorProfile.isFreeServiceGranted ? 'Unlimited Posts' : `${remainingQuota} / ${totalQuota} Free Left`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-amber-900/85 leading-relaxed font-medium">
+                    {actualCreationCharge === 0 
+                      ? `* He QR hi i account trial / free quota (${remainingQuota} free left) a nih avangin a thlawnin a siam theih e.` 
+                      : `* QR siam man hi Admin atanga set angin ₹${actualCreationCharge}/- a ni ang.`}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* 6. GPS Location Tagging */}
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
@@ -1077,12 +1152,21 @@ export const CreateQRScreen: React.FC<CreateQRScreenProps> = ({
           </div>
 
           {/* Submit */}
-          <button
-            type="submit"
-            className="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 text-white font-black py-3.5 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
-          >
-            <QrCode className="w-4 h-4" /> Generate & Submit QR (₹49)
-          </button>
+          {(() => {
+            const currentFeeRule = pricingConfig?.categories?.[selectedCategory] || DEFAULT_PRICING_CONFIG.categories[selectedCategory];
+            const rawCreationCharge = currentFeeRule?.qrCreationCharge ?? 0;
+            const isFreeTrial = currentFeeRule?.isFreeTrialActive || creatorProfile.isFreeServiceGranted || (creatorProfile.createdQRsCount < 5);
+            const actualCreationCharge = isFreeTrial ? 0 : rawCreationCharge;
+
+            return (
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-700 text-white font-black py-3.5 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+              >
+                <QrCode className="w-4 h-4" /> Generate & Submit QR {actualCreationCharge === 0 ? '(Free Trial)' : `(₹${actualCreationCharge})`}
+              </button>
+            );
+          })()}
         </form>
       )}
 
@@ -1211,12 +1295,32 @@ export const CreateQRScreen: React.FC<CreateQRScreenProps> = ({
                       </div>
                     </div>
 
-                    {/* Target & Goal Progress Bar (Creator Dashboard) */}
+                    {/* Total Raised & Stats (Creator Dashboard) */}
                     {(() => {
                       const campTxns = transactions.filter(t => t.campaignId === camp.id || t.campaignTitle === camp.title);
                       const raised = campTxns.reduce((sum, t) => sum + t.amount, 0);
+
+                      // For Ralna Bawm: strictly NO target and NO progress bar
+                      if (isRalna) {
+                        return (
+                          <div className="bg-slate-900/5 p-2.5 rounded-xl border border-slate-200 space-y-1">
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-black text-slate-900 text-xs">₹{raised.toLocaleString('en-IN')}</span>
+                                <span className="text-[10px] text-slate-500 font-medium">Pek tlingkhawm zat</span>
+                                <span className="text-[7.5px] font-black uppercase text-slate-700 bg-slate-200 px-1 py-0.2 rounded">Creator Private</span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9.5px] font-bold text-slate-700 bg-white border border-slate-200 px-1.5 py-0.2 rounded">
+                                  {campTxns.length} txn{campTxns.length === 1 ? '' : 's'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       const target = camp.targetAmount || (
-                        camp.category === 'ralna' ? 25000 :
                         camp.category === 'khawlsak' ? 50000 :
                         camp.category === 'rikrum' ? 100000 :
                         camp.category === 'kumtluang' ? 100000 : 50000

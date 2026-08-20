@@ -739,36 +739,60 @@ export const BawmExplorerScreen: React.FC<BawmExplorerScreenProps> = ({
                 {/* Visual Progress Bar Section (Creator Only - Private to campaign creator) */}
                 {isOwner && (
                   <div className="bg-slate-50/95 p-2.5 rounded-xl border border-indigo-100 space-y-1.5 shadow-2xs">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                        <TrendingUp className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                        <span className="font-black text-slate-900 text-xs">
-                          ₹{totalRaised.toLocaleString('en-IN')}
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          {language === 'english' ? `of ₹${target.toLocaleString('en-IN')} goal` : `tling tawh (Target: ₹${target.toLocaleString('en-IN')})`}
-                        </span>
-                        <span className="text-[7.5px] font-black uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded ml-1">
-                          {language === 'english' ? 'Creator Only' : 'Creator View'}
-                        </span>
+                    {isCampRalna ? (
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <TrendingUp className="w-3.5 h-3.5 text-slate-700 shrink-0" />
+                          <span className="font-black text-slate-900 text-xs">
+                            ₹{totalRaised.toLocaleString('en-IN')}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            {language === 'english' ? 'Total collected' : 'Pek tlingkhawm zat'}
+                          </span>
+                          <span className="text-[7.5px] font-black uppercase text-slate-700 bg-slate-200 border border-slate-300 px-1 py-0.2 rounded ml-1">
+                            {language === 'english' ? 'Creator Only' : 'Creator View'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[9.5px] text-slate-600 font-bold bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                            {campTransactions.length} {campTransactions.length === 1 ? 'txn' : 'txns'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[9.5px] text-slate-400 font-medium">
-                          {campTransactions.length} {campTransactions.length === 1 ? 'txn' : 'txns'}
-                        </span>
-                        <span className="text-[9.5px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
-                          {percentage}% {language === 'english' ? 'Reached' : 'Tling'}
-                        </span>
-                      </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            <TrendingUp className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                            <span className="font-black text-slate-900 text-xs">
+                              ₹{totalRaised.toLocaleString('en-IN')}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {language === 'english' ? `of ₹${target.toLocaleString('en-IN')} goal` : `tling tawh (Target: ₹${target.toLocaleString('en-IN')})`}
+                            </span>
+                            <span className="text-[7.5px] font-black uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1 py-0.2 rounded ml-1">
+                              {language === 'english' ? 'Creator Only' : 'Creator View'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[9.5px] text-slate-400 font-medium">
+                              {campTransactions.length} {campTransactions.length === 1 ? 'txn' : 'txns'}
+                            </span>
+                            <span className="text-[9.5px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
+                              {percentage}% {language === 'english' ? 'Reached' : 'Tling'}
+                            </span>
+                          </div>
+                        </div>
 
-                    {/* Progress Track */}
-                    <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden border border-slate-200/40">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
-                        style={{ width: `${clampedPercentage}%` }}
-                      />
-                    </div>
+                        {/* Progress Track */}
+                        <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden border border-slate-200/40">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${progressColor}`}
+                            style={{ width: `${clampedPercentage}%` }}
+                          />
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

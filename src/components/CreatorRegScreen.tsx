@@ -85,12 +85,31 @@ export const CreatorRegScreen: React.FC<CreatorRegScreenProps> = ({
     const cleanInput = loginPhone.trim();
 
     // Check for Admin Login via User ID / Phone
-    if (
-      (cleanInput.toLowerCase() === 'admin' || cleanInput === 'admin@ronpay.com' || cleanInput === '9999999999') &&
-      (loginPassword === 'ronpay2026' || loginPassword === 'admin' || loginPassword === '1234')
-    ) {
-      if (onOpenAdminDashboard) {
-        onOpenAdminDashboard();
+    if (cleanInput.toLowerCase() === 'admin' || cleanInput === 'admin@ronpay.com' || cleanInput === '9999999999') {
+      if (loginPassword.trim() === 'ronpay2026' || loginPassword.trim() === 'admin' || loginPassword.trim() === '1234') {
+        try {
+          sessionStorage.setItem('ronpay_admin_auth', 'true');
+        } catch (e) {
+          // ignore
+        }
+        const adminProfile: CreatorProfile = {
+          name: 'RonPay System Administrator',
+          orgName: 'BCM Ebenezer',
+          designation: 'Finance & Accounts',
+          phone: 'admin',
+          isPhoneVerified: true,
+          isApproved: true,
+          isAdmin: true,
+          approvedCategories: ['ralna', 'khawlsak', 'rikrum', 'kumtluang', 'others'],
+          createdQRsCount: 99,
+        };
+        onSuccess(adminProfile, 'ralna');
+        if (onOpenAdminDashboard) {
+          onOpenAdminDashboard();
+        }
+        return;
+      } else {
+        setLoginError('Admin Password a dik lo! (Default: ronpay2026)');
         return;
       }
     }
@@ -120,7 +139,6 @@ export const CreatorRegScreen: React.FC<CreatorRegScreenProps> = ({
       createdQRsCount: creatorProfile.createdQRsCount || 3,
     };
 
-    alert(`✅ Login Successful!\nChibai, ${activeProfile.name}! Creator Studio hawn a ni e.`);
     onSuccess(activeProfile, activeProfile.approvedCategories[0] || 'ralna');
   };
 
@@ -143,6 +161,9 @@ export const CreatorRegScreen: React.FC<CreatorRegScreenProps> = ({
       return;
     }
 
+    const now = new Date();
+    const trialExpiry = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000); // 6 Months (180 Days) dynamic fair trial from registration date
+
     const updatedProfile: CreatorProfile = {
       ...creatorProfile,
       name: applicantName.trim(),
@@ -154,9 +175,15 @@ export const CreatorRegScreen: React.FC<CreatorRegScreenProps> = ({
       authDocName: uploadedDocName || 'Authorization_Letter.pdf',
       approvedCategories: Array.from(new Set([...creatorProfile.approvedCategories, category])),
       createdQRsCount: creatorProfile.createdQRsCount || 0,
+      registeredAt: now.toISOString(),
+      trialExpiresAt: trialExpiry.toISOString(),
+      customTrialDays: 180,
+      freePostsQuota: 10,
+      freePostsUsed: 0,
+      subscriptionPlan: 'free_trial',
     };
 
-    alert(`🎉 Creator Registration Successful for ${BAWM_CONFIG[category].name}!\nAccount a in-login nghal e.`);
+    alert(`🎉 Creator Registration Successful for ${BAWM_CONFIG[category].name}!\n\n🎁 Welcome Offer: Thla 6 (180 Days) Free Trial & A thlawnin QR 10 siam theihna pek i ni e.`);
     onSuccess(updatedProfile, category);
   };
 
@@ -261,6 +288,19 @@ export const CreatorRegScreen: React.FC<CreatorRegScreenProps> = ({
           >
             <LogIn className="w-4 h-4" /> Login & Continue
           </button>
+
+          {onOpenAdminDashboard && (
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[10px] text-slate-500 font-medium">System Administrator i ni em?</span>
+              <button
+                type="button"
+                onClick={onOpenAdminDashboard}
+                className="text-[10.5px] font-black text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" /> Admin Console
+              </button>
+            </div>
+          )}
         </form>
       )}
 

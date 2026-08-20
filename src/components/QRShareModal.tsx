@@ -38,8 +38,25 @@ export const QRShareModal: React.FC<QRShareModalProps> = ({
 
   if (!isOpen || !campaign) return null;
 
-  const shareUrl = `${window.location.origin}/?campaignId=${campaign.id}`;
-  const shareText = `*${campaign.title}* - RonPay Bawm Donation\nBawm: ${campaign.category.toUpperCase()}\nLocation: ${campaign.location}\nUPI: ${campaign.upiId}\n\nDonation Link: ${shareUrl}`;
+  const shareUrl = `${window.location.origin}${window.location.pathname}?campaignId=${campaign.id}`;
+  const shareText = `*${campaign.title}* - RonPay Bawm Donation\nBawm: ${campaign.category.toUpperCase()}\nLocation: ${campaign.location}\nUPI ID: ${campaign.upiId}\n\nDonation Link: ${shareUrl}`;
+
+  const handleNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: campaign.title,
+          text: shareText,
+          url: shareUrl,
+        });
+      } catch (err) {
+        // Fallback to WhatsApp
+        handleShareWhatsApp();
+      }
+    } else {
+      handleShareWhatsApp();
+    }
+  };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareUrl);
@@ -168,14 +185,25 @@ export const QRShareModal: React.FC<QRShareModalProps> = ({
 
         {/* Share & Download Actions */}
         <div className="space-y-2 pt-1 text-xs">
-          {/* WhatsApp Share */}
-          <button
-            onClick={handleShareWhatsApp}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-xs transition cursor-pointer active:scale-98"
-          >
-            <MessageCircle className="w-4 h-4 text-emerald-200" />
-            <span>WhatsApp-ah Share Rawh</span>
-          </button>
+          {/* Main Share Button */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={handleNativeShare}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer active:scale-98"
+            >
+              <Share2 className="w-4 h-4 text-indigo-200" />
+              <span>Share QR / Link</span>
+            </button>
+
+            {/* WhatsApp Share */}
+            <button
+              onClick={handleShareWhatsApp}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 px-3 rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer active:scale-98"
+            >
+              <MessageCircle className="w-4 h-4 text-emerald-200" />
+              <span>WhatsApp</span>
+            </button>
+          </div>
 
           {/* Copy Link & Download Grid */}
           <div className="grid grid-cols-2 gap-2">

@@ -111,9 +111,13 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
     ? (Object.values(subcatAmounts) as number[]).reduce((acc: number, curr: number) => acc + curr, 0)
     : standardAmount;
 
-  // Dynamic Platform Fee based on Admin Pricing Config
+  // Dynamic Platform Fee based on Admin Pricing Config & Per-Creator Overrides
   const feeRule = pricingConfig?.categories[category] || DEFAULT_PRICING_CONFIG.categories[category];
-  const isFreeTrial = feeRule?.isFreeTrialActive || false;
+  
+  // Check if Campaign or Creator has a per-category override (e.g. Mr A Ralna=0%, Rikrum=0.5%)
+  const isFreeTrial = campaign?.customFreeTrialActive !== undefined 
+    ? campaign.customFreeTrialActive 
+    : (feeRule?.isFreeTrialActive || false);
   
   let feeRatePercent = 0;
   let fixedFee = 0;
@@ -125,6 +129,10 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
     } else if (category === 'kumtluang' && campaign?.trxnFeeBearer === 'org_paid') {
       feeRatePercent = 0;
       fixedFee = 0;
+    } else if (campaign?.customPlatformFeePercent !== undefined) {
+      // Use creator's custom category fee rate override
+      feeRatePercent = campaign.customPlatformFeePercent;
+      fixedFee = feeRule?.platformFeeFixed ?? 0;
     } else {
       feeRatePercent = feeRule?.platformFeePercent ?? 1.0;
       fixedFee = feeRule?.platformFeeFixed ?? 0;
