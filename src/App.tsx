@@ -843,7 +843,10 @@ export default function App() {
             return list;
           })()}
           pricingConfig={pricingConfig}
-          onUpdatePricingConfig={setPricingConfig}
+          onUpdatePricingConfig={(updated) => {
+            setPricingConfig(updated);
+            saveStoredPricingConfig(updated);
+          }}
           onUpdateCampaign={handleUpdateCampaign}
           onDeleteCampaign={(campId) => {
             setCampaigns(prev => prev.filter(c => c.id !== campId));

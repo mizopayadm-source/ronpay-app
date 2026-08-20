@@ -585,18 +585,20 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
             </div>
           )}
 
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 block mb-1">
-              Thuchah / Remark (Optional)
-            </label>
-            <input
-              type="text"
-              value={remark}
-              onChange={(e) => setRemark(e.target.value)}
-              placeholder="e.g. Ralna thuchah / Lawmthu sawina / Note..."
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600 transition"
-            />
-          </div>
+          {category !== 'kumtluang' && (
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 block mb-1">
+                Thuchah / Remark (Optional)
+              </label>
+              <input
+                type="text"
+                value={remark}
+                onChange={(e) => setRemark(e.target.value)}
+                placeholder="e.g. Ralna thuchah / Lawmthu sawina / Note..."
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600 transition"
+              />
+            </div>
+          )}
         </div>
 
         {/* Amount & Period Section */}
