@@ -168,6 +168,7 @@ export interface BawmFeeRule {
   platformFeePercent: number; // e.g. 1.0 = 1%
   platformFeeFixed: number; // e.g. ₹0
   qrCreationCharge: number; // e.g. ₹99 or ₹0
+  qrCreationPrice?: number; // alias for qrCreationCharge (e.g. ₹49)
   qrPrintProcessingCharge: number; // e.g. ₹49 or ₹0
   trialPeriodDays: number; // e.g. 30 days
   discountPercent: number; // e.g. 0 to 100%
@@ -195,6 +196,7 @@ export interface BawmFeeRule {
 export interface SystemPricingConfig {
   globalDiscountPercent: number;
   globalTrialDays: number;
+  qrCreationPrice?: number; // global / default qr creation price if set
   categories: Record<BawmCategory, BawmFeeRule>;
   lastUpdated: string;
   updatedBy: string;
