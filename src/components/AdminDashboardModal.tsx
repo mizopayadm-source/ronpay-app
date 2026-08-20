@@ -49,7 +49,14 @@ import {
   Trophy,
   Crown,
   Medal,
-  UserCheck
+  UserCheck,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUp,
+  ArrowDown,
+  Play,
+  Pause,
+  ArrowRight
 } from 'lucide-react';
 import { 
   Campaign, 
@@ -59,7 +66,8 @@ import {
   SystemPricingConfig, 
   BawmFeeRule, 
   AuditLog, 
-  AnnouncementBanner 
+  AnnouncementBanner,
+  AnnouncementItem
 } from '../types';
 import { formatDateDDMMYYYY } from '../utils/date';
 import { BAWM_CONFIG, DEFAULT_PRICING_CONFIG } from '../data/initialData';
@@ -69,7 +77,8 @@ import {
   recordAuditLog,
   getStoredAuditLogs,
   getStoredAnnouncement,
-  saveStoredAnnouncement
+  saveStoredAnnouncement,
+  DEFAULT_ANNOUNCEMENT_ITEMS
 } from '../utils/storage';
 
 interface AdminDashboardModalProps {
@@ -149,9 +158,30 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   // Announcement state
   const [localAnnouncement, setLocalAnnouncement] = useState<AnnouncementBanner>(() => {
-    return announcement || getStoredAnnouncement();
+    const raw = announcement || getStoredAnnouncement();
+    const items = raw.items && raw.items.length > 0 ? raw.items : DEFAULT_ANNOUNCEMENT_ITEMS;
+    return {
+      ...raw,
+      items,
+      animationStyle: raw.animationStyle || 'slide',
+      autoRotate: raw.autoRotate !== false,
+      rotationSpeedSeconds: raw.rotationSpeedSeconds || 4
+    };
   });
   const [announcementSavedNotice, setAnnouncementSavedNotice] = useState<boolean>(false);
+  const [previewAnnounceIdx, setPreviewAnnounceIdx] = useState<number>(0);
+  const [isPreviewPaused, setIsPreviewPaused] = useState<boolean>(false);
+  const [activeEditingItemId, setActiveEditingItemId] = useState<string>('ann-1');
+
+  // Sync preview timer
+  useEffect(() => {
+    const items = localAnnouncement.items || [];
+    if (!localAnnouncement.autoRotate || isPreviewPaused || items.length <= 1) return;
+    const interval = setInterval(() => {
+      setPreviewAnnounceIdx((prev) => (prev + 1) % items.length);
+    }, Math.max(2, localAnnouncement.rotationSpeedSeconds || 4) * 1000);
+    return () => clearInterval(interval);
+  }, [localAnnouncement.autoRotate, isPreviewPaused, localAnnouncement.items, localAnnouncement.rotationSpeedSeconds]);
 
   // Audit Logs state
   const [logsList, setLogsList] = useState<AuditLog[]>(() => {
@@ -1280,130 +1310,567 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               )}
 
               {/* ========================================================= */}
-              {/* TAB 3: CUSTOM ANNOUNCEMENT BANNER (Request 3)             */}
+              {/* TAB 3: CUSTOM ANNOUNCEMENT BANNER & MULTI-ITEM ROTATION   */}
               {/* ========================================================= */}
-              {activeTab === 'announcement' && (
-                <div className="space-y-5 max-w-2xl mx-auto">
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                      <Megaphone className="w-4 h-4 text-indigo-600" />
-                      Global Community Announcement System
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Configure the live banner displayed at the top of the HomeScreen for all users.
-                    </p>
-                  </div>
+              {activeTab === 'announcement' && (() => {
+                const currentItems = localAnnouncement.items && localAnnouncement.items.length > 0
+                  ? localAnnouncement.items
+                  : DEFAULT_ANNOUNCEMENT_ITEMS;
 
-                  {/* Live Banner Preview Card */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10.5px] font-black text-slate-500 uppercase tracking-wider">Live Preview</label>
-                    {localAnnouncement.isActive ? (
-                      <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all ${
-                        localAnnouncement.type === 'urgent'
-                          ? 'bg-gradient-to-r from-red-500 via-rose-600 to-red-600 text-white border-red-400'
-                          : localAnnouncement.type === 'info'
-                          ? 'bg-gradient-to-r from-indigo-700 via-purple-700 to-indigo-800 text-white border-indigo-500'
-                          : localAnnouncement.type === 'notice'
-                          ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white border-amber-400'
-                          : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white border-emerald-500'
-                      }`}>
-                        <div className="flex items-start gap-2.5">
-                          <span className="p-1.5 bg-white/20 rounded-xl shrink-0 backdrop-blur-xs">
-                            <Megaphone className="w-4 h-4" />
-                          </span>
-                          <div className="space-y-0.5 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-white/25 text-white">
-                                {localAnnouncement.type}
-                              </span>
-                              <h4 className="text-xs font-black">{localAnnouncement.title}</h4>
-                            </div>
-                            <p className="text-[11px] text-white/90 leading-snug">{localAnnouncement.message}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-4 rounded-2xl border border-dashed border-slate-300 text-center text-slate-400 text-xs">
-                        Announcement banner is currently <strong>DISABLED</strong>.
-                      </div>
-                    )}
-                  </div>
+                const activeEditingItem = currentItems.find(i => i.id === activeEditingItemId) || currentItems[0] || {
+                  id: 'ann-1',
+                  isActive: true,
+                  type: 'urgent',
+                  title: 'Notice',
+                  message: '',
+                  badge: 'NOTICE'
+                };
 
-                  {/* Announcement Form */}
-                  <form onSubmit={handleSaveAnnouncement} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-black text-slate-800">Banner Display Status</label>
+                const previewItem = currentItems[previewAnnounceIdx] || currentItems[0] || activeEditingItem;
+
+                const handleUpdateCurrentItem = (patch: Partial<AnnouncementItem>) => {
+                  const updatedItems = currentItems.map(item => {
+                    if (item.id === activeEditingItem.id) {
+                      return { ...item, ...patch };
+                    }
+                    return item;
+                  });
+                  setLocalAnnouncement(prev => ({
+                    ...prev,
+                    items: updatedItems,
+                    // If editing item 0, keep legacy fields in sync
+                    title: updatedItems[0]?.title || prev.title,
+                    message: updatedItems[0]?.message || prev.message,
+                    type: updatedItems[0]?.type || prev.type
+                  }));
+                };
+
+                const handleAddItem = () => {
+                  const newId = `ann-${Date.now()}`;
+                  const newItem: AnnouncementItem = {
+                    id: newId,
+                    isActive: true,
+                    type: 'info',
+                    title: 'Announcement Thar',
+                    message: 'Mipuite hriattirna thar hetah hian ziak rawh...',
+                    badge: 'NEW',
+                    linkText: 'En Rawh',
+                    linkAction: 'explore_bawm'
+                  };
+                  const updatedItems = [...currentItems, newItem];
+                  setLocalAnnouncement(prev => ({
+                    ...prev,
+                    items: updatedItems
+                  }));
+                  setActiveEditingItemId(newId);
+                  setPreviewAnnounceIdx(updatedItems.length - 1);
+                };
+
+                const handleDeleteItem = (idToDelete: string) => {
+                  if (currentItems.length <= 1) {
+                    alert('At least announcement item 1 tal a awm a ngai e.');
+                    return;
+                  }
+                  const updatedItems = currentItems.filter(i => i.id !== idToDelete);
+                  setLocalAnnouncement(prev => ({
+                    ...prev,
+                    items: updatedItems
+                  }));
+                  if (activeEditingItemId === idToDelete) {
+                    setActiveEditingItemId(updatedItems[0].id);
+                  }
+                  setPreviewAnnounceIdx(0);
+                };
+
+                const handleMoveItem = (idx: number, direction: 'up' | 'down') => {
+                  const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+                  if (targetIdx < 0 || targetIdx >= currentItems.length) return;
+                  const newItems = [...currentItems];
+                  const temp = newItems[idx];
+                  newItems[idx] = newItems[targetIdx];
+                  newItems[targetIdx] = temp;
+                  setLocalAnnouncement(prev => ({
+                    ...prev,
+                    items: newItems
+                  }));
+                  setPreviewAnnounceIdx(targetIdx);
+                };
+
+                const handleResetDefaultItems = () => {
+                  if (window.confirm('Announcement items 4 hi default dinhmunah reset i duh chiang maw?')) {
+                    setLocalAnnouncement(prev => ({
+                      ...prev,
+                      items: DEFAULT_ANNOUNCEMENT_ITEMS,
+                      autoRotate: true,
+                      animationStyle: 'slide',
+                      rotationSpeedSeconds: 4
+                    }));
+                    setActiveEditingItemId(DEFAULT_ANNOUNCEMENT_ITEMS[0].id);
+                    setPreviewAnnounceIdx(0);
+                  }
+                };
+
+                return (
+                  <div className="space-y-5 max-w-2xl mx-auto">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                          <Megaphone className="w-4 h-4 text-indigo-600" />
+                          Global Animated Announcement Banner
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Inthlak kual thei (Auto-rotating), che thei chi (animated), leh announcement 4+ duhtawka thlakna.
+                        </p>
+                      </div>
+
                       <button
                         type="button"
-                        onClick={() => setLocalAnnouncement(prev => ({ ...prev, isActive: !prev.isActive }))}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                          localAnnouncement.isActive ? 'bg-indigo-600' : 'bg-slate-300'
-                        }`}
+                        onClick={handleResetDefaultItems}
+                        className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-xl transition border border-indigo-200 cursor-pointer self-start sm:self-auto"
                       >
-                        <span
-                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                            localAnnouncement.isActive ? 'translate-x-5' : 'translate-x-0'
-                          }`}
-                        />
+                        Reset to Default 4
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {(['urgent', 'info', 'notice', 'event'] as const).map(type => (
+                    {/* Interactive Live Banner Preview Card */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10.5px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                          <span>Live Banner Preview (HomeScreen Display)</span>
+                          {localAnnouncement.autoRotate && (
+                            <span className="text-[9px] font-mono bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded-full font-bold">
+                              Rotating ({localAnnouncement.rotationSpeedSeconds || 4}s)
+                            </span>
+                          )}
+                        </label>
+
+                        {/* Interactive Preview Controls */}
+                        {currentItems.length > 1 && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-mono text-slate-500 font-bold mr-1">
+                              Item {previewAnnounceIdx + 1}/{currentItems.length}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewAnnounceIdx(prev => (prev - 1 + currentItems.length) % currentItems.length)}
+                              className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
+                              title="Previous Announcement"
+                            >
+                              <ChevronLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsPreviewPaused(!isPreviewPaused)}
+                              className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
+                              title={isPreviewPaused ? "Play" : "Pause"}
+                            >
+                              {isPreviewPaused ? <Play className="w-3.5 h-3.5 text-emerald-600" /> : <Pause className="w-3.5 h-3.5 text-amber-600" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewAnnounceIdx(prev => (prev + 1) % currentItems.length)}
+                              className="p-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition cursor-pointer"
+                              title="Next Announcement"
+                            >
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {localAnnouncement.isActive ? (
+                        <div className={`p-4 rounded-2xl border shadow-sm relative overflow-hidden transition-all text-white ${
+                          previewItem.type === 'urgent'
+                            ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 border-red-500'
+                            : previewItem.type === 'info'
+                            ? 'bg-gradient-to-r from-indigo-700 via-purple-700 to-indigo-800 border-indigo-500'
+                            : previewItem.type === 'notice'
+                            ? 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 border-amber-500'
+                            : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 border-emerald-500'
+                        } ${localAnnouncement.animationStyle === 'pulse' ? 'animate-pulse' : ''}`}>
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                              <span className="p-1.5 bg-white/20 rounded-xl shrink-0 backdrop-blur-xs mt-0.5">
+                                <Megaphone className="w-4 h-4 text-white" />
+                              </span>
+                              <div className="space-y-1 flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[8.5px] font-black uppercase px-2 py-0.2 rounded-full bg-white/25 text-white tracking-wider">
+                                    {previewItem.badge || previewItem.type?.toUpperCase() || 'NOTICE'}
+                                  </span>
+                                  <span className="text-[8.5px] font-mono bg-black/25 text-white/90 px-1.5 py-0.2 rounded-full">
+                                    #{previewAnnounceIdx + 1}
+                                  </span>
+                                  {localAnnouncement.animationStyle === 'marquee' && (
+                                    <span className="text-[8px] bg-amber-300 text-slate-950 font-black uppercase px-1 rounded-sm">
+                                      Ticker
+                                    </span>
+                                  )}
+                                </div>
+
+                                {localAnnouncement.animationStyle === 'marquee' ? (
+                                  <div className="overflow-hidden whitespace-nowrap py-0.5">
+                                    <div className="inline-block animate-marquee font-bold text-xs">
+                                      <span className="text-amber-200 mr-2">[{previewItem.title}]</span>
+                                      <span>{previewItem.message}</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <h4 className="text-xs sm:text-sm font-black leading-tight">{previewItem.title}</h4>
+                                    <p className="text-[11px] text-white/95 leading-snug mt-0.5">{previewItem.message}</p>
+                                  </div>
+                                )}
+
+                                {previewItem.linkText && (
+                                  <div className="pt-1">
+                                    <span className="inline-flex items-center gap-1 bg-white text-slate-900 font-black text-[10px] px-2.5 py-1 rounded-xl shadow-xs">
+                                      {previewItem.linkText}
+                                      <ArrowRight className="w-3 h-3 text-slate-700" />
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Dots */}
+                          {currentItems.length > 1 && (
+                            <div className="flex items-center justify-center gap-1.5 pt-2 mt-2 border-t border-white/20">
+                              {currentItems.map((item, idx) => (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setPreviewAnnounceIdx(idx);
+                                    setActiveEditingItemId(item.id);
+                                  }}
+                                  className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                                    previewAnnounceIdx === idx ? 'w-5 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'
+                                  }`}
+                                  title={`Switch to item ${idx + 1}`}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-4 rounded-2xl border border-dashed border-slate-300 text-center text-slate-400 text-xs">
+                          Announcement banner is currently <strong>DISABLED</strong>.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* GLOBAL BANNER & MOTION SETTINGS */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                        <div>
+                          <label className="text-xs font-black text-slate-800 block">Banner Display Status</label>
+                          <span className="text-[10px] text-slate-500">HomeScreen chunga banner lanna switch</span>
+                        </div>
                         <button
-                          key={type}
                           type="button"
-                          onClick={() => setLocalAnnouncement(prev => ({ ...prev, type }))}
-                          className={`py-2 px-3 rounded-xl text-xs font-black uppercase transition cursor-pointer border ${
-                            localAnnouncement.type === type
-                              ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                          onClick={() => setLocalAnnouncement(prev => ({ ...prev, isActive: !prev.isActive }))}
+                          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            localAnnouncement.isActive ? 'bg-indigo-600' : 'bg-slate-300'
                           }`}
                         >
-                          {type}
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              localAnnouncement.isActive ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
                         </button>
-                      ))}
+                      </div>
+
+                      {/* Animation Style Selector (Che thei chi) */}
+                      <div>
+                        <label className="text-[10.5px] font-extrabold text-slate-700 uppercase tracking-wider block mb-1.5">
+                          Motion / Animation Style (Che thei chi)
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                          {[
+                            { key: 'slide', label: 'Slide Carousel', icon: '↔️' },
+                            { key: 'marquee', label: 'Ticker / Marquee', icon: '📜' },
+                            { key: 'pulse', label: 'Pulse Glow', icon: '✨' },
+                            { key: 'fade', label: 'Smooth Fade', icon: '🌫️' },
+                            { key: 'static', label: 'Static', icon: '⏹️' }
+                          ].map(style => (
+                            <button
+                              key={style.key}
+                              type="button"
+                              onClick={() => setLocalAnnouncement(prev => ({ ...prev, animationStyle: style.key as any }))}
+                              className={`p-2 rounded-xl text-center text-xs font-bold transition cursor-pointer border ${
+                                localAnnouncement.animationStyle === style.key
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <div className="text-sm">{style.icon}</div>
+                              <div className="text-[10.5px] mt-0.5 leading-tight">{style.label}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Auto-Rotation Controls (Inthlak kual theihna) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/80">
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10.5px] font-extrabold text-slate-700 uppercase">
+                              Auto-Rotate (Inthlak Kual)
+                            </label>
+                            <input
+                              type="checkbox"
+                              checked={localAnnouncement.autoRotate !== false}
+                              onChange={(e) => setLocalAnnouncement(prev => ({ ...prev, autoRotate: e.target.checked }))}
+                              className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                            />
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            Announcement 4-te hi a hranpaa hmeh ngai lova anmahni a inthlak kual turin.
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="text-[10.5px] font-extrabold text-slate-700 uppercase block mb-1">
+                            Rotation Speed (Second Zatin)
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            {[2, 3, 4, 6, 8, 10].map(sec => (
+                              <button
+                                key={sec}
+                                type="button"
+                                onClick={() => setLocalAnnouncement(prev => ({ ...prev, rotationSpeedSeconds: sec }))}
+                                className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition cursor-pointer border ${
+                                  (localAnnouncement.rotationSpeedSeconds || 4) === sec
+                                    ? 'bg-slate-900 text-white border-slate-900'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {sec}s
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="text-[10.5px] font-extrabold text-slate-600 uppercase">Banner Headline / Title</label>
-                      <input
-                        type="text"
-                        value={localAnnouncement.title}
-                        onChange={(e) => setLocalAnnouncement(prev => ({ ...prev, title: e.target.value }))}
-                        className="w-full mt-1 p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-indigo-600 focus:outline-none"
-                        placeholder="Mizoram Community Notice..."
-                        required
-                      />
+                    {/* MULTI-ITEM MANAGER & EDITOR TABS */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <div>
+                          <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                            Announcement Items ({currentItems.length})
+                          </h4>
+                          <p className="text-[10.5px] text-slate-500">
+                            Tun mek a mi 4 te hi hmet la, i duh danin thlak danglam / belh rawh le.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleAddItem}
+                          className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-indigo-200 transition cursor-pointer flex items-center gap-1 active:scale-95"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Item Belh
+                        </button>
+                      </div>
+
+                      {/* Items Selector Tabs */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                        {currentItems.map((item, idx) => {
+                          const isSelected = item.id === activeEditingItem.id;
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                setActiveEditingItemId(item.id);
+                                setPreviewAnnounceIdx(idx);
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-1.5 shrink-0 border ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs ring-2 ring-indigo-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                              }`}
+                            >
+                              <span>#{idx + 1}</span>
+                              <span className="truncate max-w-[110px]">{item.badge || item.title || `Item ${idx + 1}`}</span>
+                              {!item.isActive && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" title="Hidden" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Editing Active Item Form */}
+                      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-slate-900">
+                              Item #{currentItems.findIndex(i => i.id === activeEditingItem.id) + 1} Siamthatna
+                            </span>
+                            <label className="flex items-center gap-1 text-[11px] font-bold text-slate-600 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={activeEditingItem.isActive !== false}
+                                onChange={(e) => handleUpdateCurrentItem({ isActive: e.target.checked })}
+                                className="rounded text-indigo-600 focus:ring-indigo-500"
+                              />
+                              Active
+                            </label>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            {/* Reorder Buttons */}
+                            {currentItems.length > 1 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveItem(currentItems.findIndex(i => i.id === activeEditingItem.id), 'up')}
+                                  disabled={currentItems.findIndex(i => i.id === activeEditingItem.id) === 0}
+                                  className="p-1 rounded bg-white hover:bg-slate-200 border border-slate-200 text-slate-700 disabled:opacity-30 cursor-pointer"
+                                  title="Move Left / Up"
+                                >
+                                  <ArrowUp className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveItem(currentItems.findIndex(i => i.id === activeEditingItem.id), 'down')}
+                                  disabled={currentItems.findIndex(i => i.id === activeEditingItem.id) === currentItems.length - 1}
+                                  className="p-1 rounded bg-white hover:bg-slate-200 border border-slate-200 text-slate-700 disabled:opacity-30 cursor-pointer"
+                                  title="Move Right / Down"
+                                >
+                                  <ArrowDown className="w-3 h-3" />
+                                </button>
+                              </>
+                            )}
+
+                            {currentItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteItem(activeEditingItem.id)}
+                                className="p-1 rounded bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 transition cursor-pointer ml-1"
+                                title="Delete this item"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Item Type */}
+                        <div>
+                          <label className="text-[10px] font-extrabold text-slate-600 uppercase block mb-1">Color Theme & Category</label>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                            {(['urgent', 'info', 'notice', 'event'] as const).map(type => (
+                              <button
+                                key={type}
+                                type="button"
+                                onClick={() => handleUpdateCurrentItem({ type })}
+                                className={`py-1.5 px-2 rounded-xl text-xs font-black uppercase transition cursor-pointer border ${
+                                  activeEditingItem.type === type
+                                    ? type === 'urgent' ? 'bg-red-600 text-white border-red-600' :
+                                      type === 'info' ? 'bg-indigo-600 text-white border-indigo-600' :
+                                      type === 'notice' ? 'bg-amber-600 text-white border-amber-600' :
+                                      'bg-emerald-600 text-white border-emerald-600'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                {type}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Badge / Tag & Title */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[10px] font-extrabold text-slate-600 uppercase">Badge / Tag Label</label>
+                            <input
+                              type="text"
+                              value={activeEditingItem.badge || ''}
+                              onChange={(e) => handleUpdateCurrentItem({ badge: e.target.value })}
+                              placeholder="e.g. URGENT, BBPS LIVE"
+                              className="w-full mt-1 p-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-800 focus:border-indigo-600 focus:outline-none"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="text-[10px] font-extrabold text-slate-600 uppercase">Headline / Title *</label>
+                            <input
+                              type="text"
+                              value={activeEditingItem.title}
+                              onChange={(e) => handleUpdateCurrentItem({ title: e.target.value })}
+                              placeholder="e.g. Mizoram State-wide Community Notice..."
+                              className="w-full mt-1 p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-indigo-600 focus:outline-none"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        {/* Announcement Message */}
+                        <div>
+                          <label className="text-[10px] font-extrabold text-slate-600 uppercase">Announcement Details (Message) *</label>
+                          <textarea
+                            value={activeEditingItem.message}
+                            onChange={(e) => handleUpdateCurrentItem({ message: e.target.value })}
+                            rows={2}
+                            className="w-full mt-1 p-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:border-indigo-600 focus:outline-none"
+                            placeholder="Type announcement details here..."
+                            required
+                          />
+                        </div>
+
+                        {/* Action Button Link Config */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200">
+                          <div>
+                            <label className="text-[10px] font-extrabold text-slate-600 uppercase">Action Button Label (Optional)</label>
+                            <input
+                              type="text"
+                              value={activeEditingItem.linkText || ''}
+                              onChange={(e) => handleUpdateCurrentItem({ linkText: e.target.value })}
+                              placeholder="e.g. En Rawh, Lut Rawh"
+                              className="w-full mt-1 p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-indigo-600 focus:outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-extrabold text-slate-600 uppercase">Button Action Target</label>
+                            <select
+                              value={activeEditingItem.linkAction || 'explore_bawm'}
+                              onChange={(e) => handleUpdateCurrentItem({ linkAction: e.target.value })}
+                              className="w-full mt-1 p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-indigo-600 focus:outline-none"
+                            >
+                              <option value="explore_bawm">Explore Bawm (Ralna/Khawlsak)</option>
+                              <option value="open_bill_service">BBPS Bill Payments</option>
+                              <option value="create_qr">Creator Studio (Free QR)</option>
+                              <option value="kumtluang_bawm">Kumtluang Church/NGO</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="text-[10.5px] font-extrabold text-slate-600 uppercase">Announcement Message</label>
-                      <textarea
-                        value={localAnnouncement.message}
-                        onChange={(e) => setLocalAnnouncement(prev => ({ ...prev, message: e.target.value }))}
-                        rows={3}
-                        className="w-full mt-1 p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:border-indigo-600 focus:outline-none"
-                        placeholder="Type announcement details here..."
-                        required
-                      />
-                    </div>
-
+                    {/* Announcement Save Notice */}
                     {announcementSavedNotice && (
-                      <p className="text-xs text-emerald-600 font-bold bg-emerald-50 p-2 rounded-xl border border-emerald-200 text-center">
-                        ✅ Announcement successfully published to HomeScreen!
+                      <p className="text-xs text-emerald-700 font-bold bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 text-center animate-fadeIn">
+                        ✅ Announcement & Rotation Settings successfully saved and published!
                       </p>
                     )}
 
+                    {/* Save Button */}
                     <button
-                      type="submit"
-                      className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5"
+                      type="button"
+                      onClick={handleSaveAnnouncement}
+                      className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-black text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-98"
                     >
-                      <Save className="w-3.5 h-3.5" /> Save & Broadcast Announcement
+                      <Save className="w-4 h-4" /> Save & Broadcast Animated Announcements
                     </button>
-                  </form>
-                </div>
-              )}
+                  </div>
+                );
+              })()}
 
               {/* ========================================================= */}
               {/* TAB 4: AUDIT & ACTIVITY LOG (Request 2)                   */}

@@ -51,6 +51,7 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('online');
   const [standardAmount, setStandardAmount] = useState<number>(500);
   const [donorName, setDonorName] = useState<string>('');
+  const [remark, setRemark] = useState<string>('');
   const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [phonePeStatus, setPhonePeStatus] = useState<'IDLE' | 'CALLING_PG' | 'SUCCESS'>('IDLE');
@@ -202,6 +203,7 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
             totalAmount: totalPayable,
             paymentMethod: 'online',
             status: 'completed',
+            remark: remark.trim() || undefined,
             subCategoryBreakdown: category === 'kumtluang' ? subcatAmounts : undefined,
             periodType: category === 'kumtluang' ? periodType : undefined,
             periodLabel: category === 'kumtluang' ? periodLabel : undefined,
@@ -227,6 +229,7 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
         totalAmount: subtotal,
         paymentMethod: 'cash',
         status: 'pending_verification',
+        remark: remark.trim() || undefined,
         subCategoryBreakdown: category === 'kumtluang' ? subcatAmounts : undefined,
         periodType: category === 'kumtluang' ? periodType : undefined,
         periodLabel: category === 'kumtluang' ? periodLabel : undefined,
@@ -581,6 +584,19 @@ export const CheckoutScreen: React.FC<CheckoutScreenProps> = ({
               />
             </div>
           )}
+
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 block mb-1">
+              Thuchah / Remark (Optional)
+            </label>
+            <input
+              type="text"
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+              placeholder="e.g. Ralna thuchah / Lawmthu sawina / Note..."
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-medium text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600 transition"
+            />
+          </div>
         </div>
 
         {/* Amount & Period Section */}

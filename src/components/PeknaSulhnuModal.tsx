@@ -13,7 +13,10 @@ import {
   Sparkles,
   Calendar,
   Layers,
-  HeartHandshake
+  HeartHandshake,
+  Zap,
+  Banknote,
+  MessageSquare
 } from 'lucide-react';
 import { Transaction, BawmCategory } from '../types';
 import { BAWM_CONFIG } from '../data/initialData';
@@ -159,8 +162,14 @@ export const PeknaSulhnuModal: React.FC<PeknaSulhnuModalProps> = ({
             </div>
             <div class="row">
               <span class="label">Payment Mode:</span>
-              <span class="val" style="text-transform: uppercase;">${tx.paymentMethod}</span>
+              <span class="val" style="text-transform: uppercase;">${tx.paymentMethod === 'online' ? '⚡ ONLINE UPI' : '💵 CASH DEPOSIT'}</span>
             </div>
+            ${tx.remark ? `
+            <div class="row">
+              <span class="label">Remark:</span>
+              <span class="val" style="font-style: italic;">${tx.remark}</span>
+            </div>
+            ` : ''}
 
             ${subcatsHtml}
 
@@ -353,12 +362,33 @@ export const PeknaSulhnuModal: React.FC<PeknaSulhnuModalProps> = ({
                     </div>
                   )}
 
-                  {/* Actions */}
+                  {/* Remark if present (Compact space-saving inline) */}
+                  {tx.remark && (
+                    <div className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-slate-200/80 text-[10px] text-slate-600">
+                      <MessageSquare className="w-2.5 h-2.5 text-indigo-500 shrink-0" />
+                      <span className="font-semibold text-slate-700">Remark:</span>
+                      <span className="italic truncate">{tx.remark}</span>
+                    </div>
+                  )}
+
+                  {/* Actions & Payment Mode */}
                   <div className="flex justify-between items-center pt-1.5 border-t border-slate-200/60">
-                    <span className="text-[9.5px] font-bold text-emerald-700 flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      {tx.paymentMethod === 'online' ? 'UPI Online Verified' : 'Cash Deposit'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {tx.paymentMethod === 'online' ? (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200" title="Online UPI Payment">
+                          <Zap className="w-2.5 h-2.5 text-amber-500" />
+                          <span>Online</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200" title="Cash Counter Deposit">
+                          <Banknote className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>Cash</span>
+                        </span>
+                      )}
+                      <span className="text-[9px] font-bold text-slate-400">
+                        {tx.status === 'completed' ? '• Verified' : '• Pending'}
+                      </span>
+                    </div>
 
                     <button
                       onClick={() => printSingleReceipt(tx)}

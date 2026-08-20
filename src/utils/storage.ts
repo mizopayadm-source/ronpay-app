@@ -1,4 +1,4 @@
-import { Campaign, Transaction, CreatorProfile, BawmCategory, SystemPricingConfig, AuditLog, AnnouncementBanner } from '../types';
+import { Campaign, Transaction, CreatorProfile, BawmCategory, SystemPricingConfig, AuditLog, AnnouncementBanner, AnnouncementItem } from '../types';
 import { INITIAL_CAMPAIGNS, INITIAL_TRANSACTIONS, DEFAULT_PRICING_CONFIG, INITIAL_REGISTERED_CREATORS } from '../data/initialData';
 
 const CAMPAIGNS_KEY = 'ronpay_campaigns_v2';
@@ -10,14 +10,61 @@ const CAMPAIGNS_LAST_SYNC_KEY = 'ronpay_campaigns_last_sync_v1';
 const AUDIT_LOGS_KEY = 'ronpay_audit_logs_v1';
 const ANNOUNCEMENT_KEY = 'ronpay_announcement_v1';
 
+export const DEFAULT_ANNOUNCEMENT_ITEMS: AnnouncementItem[] = [
+  {
+    id: 'ann-1',
+    isActive: true,
+    type: 'urgent',
+    title: 'Mizoram State-wide Community Notice',
+    message: 'RonPay v2.5 live: Ralna, Khawlsak, Rikrum leh Kumtluang bawm zawng zawng QR Code verified-te chauh sum chhun nan hmang rawh le.',
+    linkText: 'Bawm Explorer En Rawh',
+    linkAction: 'explore_bawm',
+    badge: 'URGENT'
+  },
+  {
+    id: 'ann-2',
+    isActive: true,
+    type: 'info',
+    title: 'Instant UPI & BBPS Live Integration',
+    message: 'PhonePe, Paytm, Google Pay leh BBPS hmangin Electric, FASTag, Water Bill leh Fees te awlsam takin pek fel nghal zung zung theih a ni e.',
+    linkText: 'Bill Payments En Rawh',
+    linkAction: 'open_bill_service',
+    badge: 'BBPS LIVE'
+  },
+  {
+    id: 'ann-3',
+    isActive: true,
+    type: 'notice',
+    title: 'YMA & Creator Verification Studio',
+    message: 'Branch YMA, NGO leh Kohhran tan Creator Studio-ah registration tiin Free QR Code siam a, donation awlsam takin tlingkhawm rawh le.',
+    linkText: 'Creator Studio-ah Lut Rawh',
+    linkAction: 'create_qr',
+    badge: 'CREATOR HUB'
+  },
+  {
+    id: 'ann-4',
+    isActive: true,
+    type: 'event',
+    title: 'Synod & Kohhran Khawmpui Pual',
+    message: 'Kohhran Inkhawmpui, Fellowship leh Khawtlang thiltih hrang hrang pualin Kumtluang & Khawlsak Bawm siam a remchang e.',
+    linkText: 'Kumtluang Bawm En Rawh',
+    linkAction: 'kumtluang_bawm',
+    badge: 'EVENT'
+  }
+];
+
 export const DEFAULT_ANNOUNCEMENT: AnnouncementBanner = {
-  id: 'ann-1',
+  id: 'ann-main-config',
   isActive: true,
   type: 'urgent',
   title: 'Mizoram State-wide Community Notice',
   message: 'RonPay v2.5 live: Ralna, Khawlsak, Rikrum leh Kumtluang bawm zawng zawng QR Code verified-te chauh sum chhun nan hmang rawh le.',
   linkText: 'Bawm Explorer En Rawh',
   linkAction: 'explore_bawm',
+  animationStyle: 'slide',
+  rotationSpeedSeconds: 4,
+  autoRotate: true,
+  items: DEFAULT_ANNOUNCEMENT_ITEMS,
   createdAt: new Date().toISOString()
 };
 
@@ -367,6 +414,19 @@ export const getStoredAnnouncement = (): AnnouncementBanner => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.title) {
+        // Ensure default items exist if upgrading from older format
+        if (!parsed.items || parsed.items.length === 0) {
+          parsed.items = DEFAULT_ANNOUNCEMENT_ITEMS;
+        }
+        if (parsed.autoRotate === undefined) {
+          parsed.autoRotate = true;
+        }
+        if (!parsed.rotationSpeedSeconds) {
+          parsed.rotationSpeedSeconds = 4;
+        }
+        if (!parsed.animationStyle) {
+          parsed.animationStyle = 'slide';
+        }
         return parsed;
       }
     }

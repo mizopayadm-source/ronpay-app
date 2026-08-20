@@ -84,6 +84,7 @@ export interface Transaction {
   subCategoryBreakdown?: { [key: string]: number };
   periodType?: 'monthly' | 'quarterly' | 'yearly';
   periodLabel?: string;
+  remark?: string;
   timestamp: string;
   txHash: string;
 }
@@ -134,6 +135,17 @@ export interface AuditLog {
   timestamp: string;
 }
 
+export interface AnnouncementItem {
+  id: string;
+  isActive: boolean;
+  type: 'urgent' | 'info' | 'notice' | 'event';
+  title: string;
+  message: string;
+  linkText?: string;
+  linkAction?: string;
+  badge?: string;
+}
+
 export interface AnnouncementBanner {
   id: string;
   isActive: boolean;
@@ -142,8 +154,10 @@ export interface AnnouncementBanner {
   message: string;
   linkText?: string;
   linkAction?: string;
-  animationStyle?: 'marquee' | 'pulse' | 'static' | 'fade';
+  animationStyle?: 'marquee' | 'pulse' | 'static' | 'fade' | 'slide';
   rotationSpeedSeconds?: number;
+  autoRotate?: boolean;
+  items?: AnnouncementItem[];
   createdAt: string;
   updatedAt?: string;
 }

@@ -36,7 +36,10 @@ import {
   Sliders,
   Settings,
   Eye,
-  EyeOff
+  EyeOff,
+  Zap,
+  Banknote,
+  MessageSquare
 } from 'lucide-react';
 import { Transaction, Campaign, BawmCategory, CreatorProfile } from '../types';
 import { 
@@ -710,19 +713,27 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               </div>
             )}
 
-            {/* Summary Highlights (Zero Platform Fee displayed) */}
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
+            {/* Summary Highlights (With explicit Online vs Cash breakdown) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-center">
               <div className="bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-100">
-                <p className="text-[9.5px] text-slate-500 font-bold uppercase">Total Txns</p>
-                <p className="text-sm font-black text-indigo-900 mt-0.5">{totalCount}</p>
+                <p className="text-[9px] text-slate-500 font-bold uppercase">Txns & Donors</p>
+                <p className="text-xs sm:text-sm font-black text-indigo-900 mt-0.5">{totalCount} <span className="text-[10px] text-slate-500 font-semibold">({uniqueDonorsCount} Donors)</span></p>
               </div>
-              <div className="bg-blue-50/70 p-2.5 rounded-xl border border-blue-100">
-                <p className="text-[9.5px] text-slate-500 font-bold uppercase">Petu Zat (Donors)</p>
-                <p className="text-sm font-black text-blue-900 mt-0.5">{uniqueDonorsCount}</p>
+              <div className="bg-indigo-50/90 p-2.5 rounded-xl border border-indigo-200">
+                <p className="text-[9px] text-indigo-700 font-bold uppercase flex items-center justify-center gap-1">⚡ Online (UPI)</p>
+                <p className="text-xs sm:text-sm font-black text-indigo-950 mt-0.5">
+                  ₹{filteredTransactions.filter(t => t.paymentMethod === 'online').reduce((s, t) => s + t.amount, 0).toLocaleString('en-IN')}
+                </p>
               </div>
-              <div className="bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-100">
-                <p className="text-[9.5px] text-slate-500 font-bold uppercase">Amount Collected</p>
-                <p className="text-sm font-black text-emerald-700 mt-0.5">₹{grandTotal.toLocaleString('en-IN')}</p>
+              <div className="bg-amber-50/80 p-2.5 rounded-xl border border-amber-200">
+                <p className="text-[9px] text-amber-800 font-bold uppercase flex items-center justify-center gap-1">💵 Cash (Counter)</p>
+                <p className="text-xs sm:text-sm font-black text-amber-950 mt-0.5">
+                  ₹{filteredTransactions.filter(t => t.paymentMethod === 'cash').reduce((s, t) => s + t.amount, 0).toLocaleString('en-IN')}
+                </p>
+              </div>
+              <div className="bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-200">
+                <p className="text-[9px] text-emerald-800 font-bold uppercase">Grand Total</p>
+                <p className="text-xs sm:text-sm font-black text-emerald-700 mt-0.5">₹{grandTotal.toLocaleString('en-IN')}</p>
               </div>
             </div>
 
@@ -940,6 +951,9 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                             )}
                           </button>
                         </th>
+                        <th className="py-2.5 px-2.5 text-center border-r border-slate-200 whitespace-nowrap text-[10px] font-bold text-slate-600">
+                          Mode
+                        </th>
                         {kumtluangMatrix.categories.map((h) => (
                           <th key={h} className="py-2.5 px-2.5 text-right border-r border-slate-200 whitespace-nowrap">
                             {h}
@@ -958,6 +972,15 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                         <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-2 px-3 font-bold text-slate-900 border-r border-slate-200">
                             {row.donorName}
+                          </td>
+                          <td className="py-2 px-2 text-center border-r border-slate-200 whitespace-nowrap">
+                            {row.paymentMethodLabel === 'CASH' ? (
+                              <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[8.5px] font-bold px-1.5 py-0.5 rounded">💵 Cash</span>
+                            ) : row.paymentMethodLabel === 'ONLINE' ? (
+                              <span className="bg-indigo-100 text-indigo-900 border border-indigo-200 text-[8.5px] font-bold px-1.5 py-0.5 rounded">⚡ Online</span>
+                            ) : (
+                              <span className="bg-slate-100 text-slate-800 border border-slate-300 text-[8px] font-bold px-1.5 py-0.5 rounded">⚡+💵 Mix</span>
+                            )}
                           </td>
                           {kumtluangMatrix.categories.map((h) => (
                             <td key={h} className="py-2 px-2.5 text-right font-mono text-slate-600 border-r border-slate-200">
@@ -982,6 +1005,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                     <tfoot>
                       <tr className="bg-slate-900 text-white font-black text-xs">
                         <td className="py-2.5 px-3 uppercase tracking-wider">Total</td>
+                        <td className="py-2.5 px-2 text-center text-[9px] text-slate-400 font-semibold border-r border-slate-800">ALL</td>
                         {kumtluangMatrix.categories.map((h) => (
                           <td key={h} className="py-2.5 px-2.5 text-right font-mono text-amber-300">
                             {kumtluangMatrix.columnTotals[h]?.toLocaleString('en-IN') || '0'}
@@ -1086,6 +1110,15 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
                         </div>
                       )}
 
+                      {/* Remark if present (Compact space-saving inline) */}
+                      {tx.remark && (
+                        <div className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-lg border border-slate-200/80 text-[10px] text-slate-600">
+                          <MessageSquare className="w-2.5 h-2.5 text-indigo-500 shrink-0" />
+                          <span className="font-semibold text-slate-700">Remark:</span>
+                          <span className="italic truncate">{tx.remark}</span>
+                        </div>
+                      )}
+
                       <div className="flex justify-between items-center text-[10px] text-slate-500">
                         <div className="flex items-center gap-1.5 truncate max-w-[220px]">
                           <span className="truncate">{tx.campaignTitle}</span>
@@ -1100,7 +1133,18 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 
                       <div className="flex justify-between items-center text-[9px] text-slate-400 pt-1 border-t border-slate-200/60 font-mono">
                         <span>ID: {tx.id}</span>
-                        <span className="text-emerald-700 font-bold uppercase">{tx.paymentMethod} • {tx.status}</span>
+                        <div className="flex items-center gap-1.5">
+                          {tx.paymentMethod === 'online' ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">
+                              <Zap className="w-2 h-2 text-amber-500" />Online
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[8.5px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                              <Banknote className="w-2 h-2 text-emerald-600" />Cash
+                            </span>
+                          )}
+                          <span className="text-slate-400 font-bold">• {tx.status}</span>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1157,6 +1201,7 @@ const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
   const [isAnonymous, setIsAnonymous] = useState<boolean>(transaction.isAnonymous || false);
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'cash'>(transaction.paymentMethod || 'online');
   const [status, setStatus] = useState<'completed' | 'pending_verification'>(transaction.status || 'completed');
+  const [remark, setRemark] = useState<string>(transaction.remark || '');
   
   // Breakdown state
   const campaign = campaigns.find(c => c.id === transaction.campaignId);
@@ -1228,6 +1273,7 @@ const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
       totalAmount: totalAmount,
       paymentMethod: paymentMethod,
       status: status,
+      remark: remark.trim() || undefined,
       subCategoryBreakdown: isKumtluang ? breakdown : undefined,
     };
 
@@ -1388,6 +1434,18 @@ const EditTransactionModal: React.FC<EditTransactionModalProps> = ({
                 <option value="pending_verification">Pending Verification</option>
               </select>
             </div>
+          </div>
+
+          {/* Remark / Note field */}
+          <div>
+            <label className="text-[10.5px] font-bold text-slate-700 block mb-1">Remark / Note (Duham tan)</label>
+            <input
+              type="text"
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+              placeholder="e.g. Cash pek fel a ni / Thla tin thawh..."
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-medium text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-600"
+            />
           </div>
 
           {/* Total calculations badge */}

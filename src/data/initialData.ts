@@ -208,6 +208,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     totalAmount: 1010,
     paymentMethod: 'online',
     status: 'completed',
+    remark: 'Sunpui chhungte tan thlamuanna kan dilpui e.',
     timestamp: '2026-08-17T18:30:00.000Z',
     txHash: 'RPAY9928103A',
   },
@@ -238,6 +239,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     totalAmount: 2000,
     paymentMethod: 'cash',
     status: 'pending_verification',
+    remark: 'Treasurer hnenah cash-a thehluh a ni e.',
     timestamp: '2026-08-17T14:20:00.000Z',
     txHash: 'RPAYCASH8831',
   },
@@ -253,6 +255,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [
     totalAmount: 3030,
     paymentMethod: 'online',
     status: 'completed',
+    remark: 'August 2026 Kohhran Thla tin thawhpek felna.',
     periodType: 'monthly',
     periodLabel: 'August 2026',
     subCategoryBreakdown: {

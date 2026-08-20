@@ -6,6 +6,9 @@ export interface MatrixRow {
   categoryAmounts: { [category: string]: number };
   total: number;
   isAnonymous?: boolean;
+  paymentMethods: ('online' | 'cash')[];
+  paymentMethodLabel: 'ONLINE' | 'CASH' | 'ONLINE + CASH';
+  remarks?: string[];
 }
 
 export interface KumtluangMatrixData {
@@ -13,6 +16,8 @@ export interface KumtluangMatrixData {
   rows: MatrixRow[];
   columnTotals: { [category: string]: number };
   grandTotal: number;
+  onlineTotal: number;
+  cashTotal: number;
 }
 
 export const ALL_MONTH_NAMES_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
@@ -66,9 +71,37 @@ export const buildKumtluangMatrix = (
 ): KumtluangMatrixData => {
   const categorySet = new Set<string>();
   const donorMap = new Map<string, { [cat: string]: number }>();
+  const donorPaymentMethods = new Map<string, Set<'online' | 'cash'>>();
+  const donorRemarks = new Map<string, string[]>();
+
+  let onlineTotal = 0;
+  let cashTotal = 0;
 
   transactions.forEach(t => {
     const donor = t.isAnonymous ? 'Anonymous' : (t.donorName || 'Unknown Donor');
+    const method: 'online' | 'cash' = t.paymentMethod === 'cash' ? 'cash' : 'online';
+
+    if (method === 'online') {
+      onlineTotal += t.amount;
+    } else {
+      cashTotal += t.amount;
+    }
+
+    if (!donorPaymentMethods.has(donor)) {
+      donorPaymentMethods.set(donor, new Set());
+    }
+    donorPaymentMethods.get(donor)!.add(method);
+
+    if (t.remark && t.remark.trim()) {
+      if (!donorRemarks.has(donor)) {
+        donorRemarks.set(donor, []);
+      }
+      const cleanRemark = t.remark.trim();
+      if (!donorRemarks.get(donor)!.includes(cleanRemark)) {
+        donorRemarks.get(donor)!.push(cleanRemark);
+      }
+    }
+
     if (!donorMap.has(donor)) {
       donorMap.set(donor, {});
     }
@@ -108,10 +141,27 @@ export const buildKumtluangMatrix = (
     });
 
     grandTotal += rowTotal;
+
+    const methodsSet = donorPaymentMethods.get(donorName) || new Set<'online' | 'cash'>(['online']);
+    const methodsArr = Array.from(methodsSet);
+    let methodLabel: 'ONLINE' | 'CASH' | 'ONLINE + CASH' = 'ONLINE';
+    if (methodsSet.has('online') && methodsSet.has('cash')) {
+      methodLabel = 'ONLINE + CASH';
+    } else if (methodsSet.has('cash')) {
+      methodLabel = 'CASH';
+    } else {
+      methodLabel = 'ONLINE';
+    }
+
+    const remarksList = donorRemarks.get(donorName);
+
     rows.push({
       donorName,
       categoryAmounts: cleanCatAmounts,
       total: rowTotal,
+      paymentMethods: methodsArr,
+      paymentMethodLabel: methodLabel,
+      remarks: remarksList && remarksList.length > 0 ? remarksList : undefined,
     });
   });
 
@@ -129,6 +179,8 @@ export const buildKumtluangMatrix = (
     rows,
     columnTotals,
     grandTotal,
+    onlineTotal,
+    cashTotal,
   };
 };
 
@@ -180,29 +232,37 @@ export const exportFormattedExcel = (
 ) => {
   const orgName = creatorInfo?.orgName || 'Mizoram Community Platform';
   const location = creatorInfo?.address || 'Mizoram, India';
-  const creatorDisplay = creatorInfo ? `${creatorInfo.name} (${creatorInfo.phone})` : 'Authorized Official';
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+
+  const onlineTransactions = transactions.filter(t => t.paymentMethod === 'online');
+  const cashTransactions = transactions.filter(t => t.paymentMethod === 'cash');
+  const onlineTotal = onlineTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const cashTotal = cashTransactions.reduce((sum, t) => sum + t.amount, 0);
 
   let tableContentHtml = '';
 
   if (isKumtluang) {
     const matrix = buildKumtluangMatrix(transactions, sortOrder);
-    const colCount = matrix.categories.length + 2;
+    const colCount = matrix.categories.length + 3; // SlNo + Hming + PaymentMode + categories + Total
 
     const catHeaders = matrix.categories.map(c => 
       `<th class="header-cat">${c.toUpperCase()}</th>`
     ).join('');
 
-    const dataRows = matrix.rows.map((r, idx) => `
+    const dataRows = matrix.rows.map((r, idx) => {
+      const modeText = r.paymentMethodLabel === 'ONLINE' ? '⚡ ONLINE' : r.paymentMethodLabel === 'CASH' ? '💵 CASH' : '⚡+💵 ONLINE & CASH';
+      return `
       <tr class="${idx % 2 === 0 ? 'row-even' : 'row-odd'}">
         <td class="cell-center cell-bold">${idx + 1}</td>
         <td class="cell-left cell-bold">${r.donorName}</td>
+        <td class="cell-center cell-mode ${r.paymentMethodLabel === 'CASH' ? 'mode-cash' : 'mode-online'}">${modeText}</td>
         ${matrix.categories.map(c => `
           <td class="cell-currency">${r.categoryAmounts[c] || 0}</td>
         `).join('')}
         <td class="cell-currency-total">${r.total}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     const totalCols = matrix.categories.map(c => `
       <td class="cell-grand-currency">${matrix.columnTotals[c] || 0}</td>
@@ -236,6 +296,14 @@ export const exportFormattedExcel = (
           <td colspan="${colCount - 2}" class="meta-data">${matrix.rows.length} Donors</td>
         </tr>
         <tr class="meta-row">
+          <td colspan="2" class="meta-header">⚡ Online Collection (UPI):</td>
+          <td colspan="${colCount - 2}" class="meta-data-online">INR ${matrix.onlineTotal.toLocaleString('en-IN')}</td>
+        </tr>
+        <tr class="meta-row">
+          <td colspan="2" class="meta-header">💵 Cash Collection (Counter):</td>
+          <td colspan="${colCount - 2}" class="meta-data-cash">INR ${matrix.cashTotal.toLocaleString('en-IN')}</td>
+        </tr>
+        <tr class="meta-row">
           <td colspan="2" class="meta-header">Grand Total Collection:</td>
           <td colspan="${colCount - 2}" class="meta-data-highlight">INR ${matrix.grandTotal.toLocaleString('en-IN')}</td>
         </tr>
@@ -250,6 +318,7 @@ export const exportFormattedExcel = (
           <tr>
             <th class="header-sl">SL NO.</th>
             <th class="header-name">HMING (DONOR)</th>
+            <th class="header-mode">PAYMENT MODE</th>
             ${catHeaders}
             <th class="header-total">TOTAL (₹)</th>
           </tr>
@@ -259,7 +328,7 @@ export const exportFormattedExcel = (
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="2" class="cell-grand-label">GRAND TOTAL</td>
+            <td colspan="3" class="cell-grand-label">GRAND TOTAL</td>
             ${totalCols}
             <td class="cell-grand-highlight">${matrix.grandTotal}</td>
           </tr>
@@ -271,17 +340,22 @@ export const exportFormattedExcel = (
     const colCount = 7;
     const dataRows = transactions.map((t, idx) => {
       let remarks = t.periodLabel || '';
+      if (t.remark && t.remark.trim()) {
+        remarks = remarks ? `${remarks} • Note: ${t.remark.trim()}` : t.remark.trim();
+      }
       if (t.subCategoryBreakdown && Object.keys(t.subCategoryBreakdown).length > 0) {
         const parts = Object.entries(t.subCategoryBreakdown).map(([k, v]) => `${k}: ${v}`);
         remarks = remarks ? `${remarks} (${parts.join(', ')})` : parts.join(', ');
       }
+
+      const modeText = t.paymentMethod === 'cash' ? '💵 CASH' : '⚡ ONLINE';
 
       return `
         <tr class="${idx % 2 === 0 ? 'row-even' : 'row-odd'}">
           <td class="cell-center cell-bold">${idx + 1}</td>
           <td class="cell-center cell-date">${formatDateTimeDDMMYYYY(t.timestamp)}</td>
           <td class="cell-left cell-bold">${t.isAnonymous ? 'Anonymous' : t.donorName}</td>
-          <td class="cell-center cell-mode">${t.paymentMethod.toUpperCase()}</td>
+          <td class="cell-center cell-mode ${t.paymentMethod === 'cash' ? 'mode-cash' : 'mode-online'}">${modeText}</td>
           <td class="cell-left">${remarks || '-'}</td>
           <td class="cell-center cell-hash">${t.txHash || t.id}</td>
           <td class="cell-currency-total">${t.amount}</td>
@@ -317,6 +391,14 @@ export const exportFormattedExcel = (
           <td colspan="${colCount - 2}" class="meta-data">${transactions.length} Entries</td>
         </tr>
         <tr class="meta-row">
+          <td colspan="2" class="meta-header">⚡ Online Collection (UPI):</td>
+          <td colspan="${colCount - 2}" class="meta-data-online">INR ${onlineTotal.toLocaleString('en-IN')} (${onlineTransactions.length} txns)</td>
+        </tr>
+        <tr class="meta-row">
+          <td colspan="2" class="meta-header">💵 Cash Collection (Counter):</td>
+          <td colspan="${colCount - 2}" class="meta-data-cash">INR ${cashTotal.toLocaleString('en-IN')} (${cashTransactions.length} txns)</td>
+        </tr>
+        <tr class="meta-row">
           <td colspan="2" class="meta-header">Grand Total Collection:</td>
           <td colspan="${colCount - 2}" class="meta-data-highlight">INR ${totalAmount.toLocaleString('en-IN')}</td>
         </tr>
@@ -332,8 +414,8 @@ export const exportFormattedExcel = (
             <th class="header-sl">SL NO.</th>
             <th class="header-date">DATE & TIME</th>
             <th class="header-name">HMING (DONOR)</th>
-            <th class="header-mode">MODE</th>
-            <th class="header-remarks">REMARKS / PERIOD</th>
+            <th class="header-mode">PAYMENT MODE</th>
+            <th class="header-remarks">REMARKS / NOTE</th>
             <th class="header-ref">TX HASH / ID</th>
             <th class="header-total">AMOUNT (₹)</th>
           </tr>
@@ -444,17 +526,20 @@ export const exportKumtluangMatrixToCSV = (
     creatorInfo ? `"Creator / Organization:","${`${creatorInfo.name} (${creatorInfo.orgName || 'N/A'}, Phone: ${creatorInfo.phone || 'N/A'})`.replace(/"/g, '""')}"` : `""`,
     `"Date Range / Hun Chhung:","${(dateRangeText || 'All Dates').replace(/"/g, '""')}"`,
     `"Total Donors:","${matrix.rows.length}"`,
+    `"⚡ Online Collection (UPI):","Rs. ${matrix.onlineTotal.toLocaleString('en-IN')}"`,
+    `"💵 Cash Collection (Counter):","Rs. ${matrix.cashTotal.toLocaleString('en-IN')}"`,
     `"Grand Total Collection:","Rs. ${matrix.grandTotal.toLocaleString('en-IN')}"`,
     `"Exported Date & Time:","${formatDateTimeDDMMYYYY(new Date().toISOString())}"`,
     `""`,
   ].filter(Boolean);
 
-  // Headers: Hming, Cat1, Cat2, ..., Total
-  const headers = ['Hming (Donor)', ...matrix.categories, 'Total (INR)'];
+  // Headers: Hming, Payment Mode, Cat1, Cat2, ..., Total
+  const headers = ['Hming (Donor)', 'Payment Mode', ...matrix.categories, 'Total (INR)'];
 
   const dataRows = matrix.rows.map(r => {
     return [
       `"${r.donorName.replace(/"/g, '""')}"`,
+      `"${r.paymentMethodLabel}"`,
       ...matrix.categories.map(c => (r.categoryAmounts[c] || 0).toString()),
       r.total.toString(),
     ];
@@ -462,6 +547,7 @@ export const exportKumtluangMatrixToCSV = (
 
   const totalRow = [
     '"TOTAL"',
+    '""',
     ...matrix.categories.map(c => (matrix.columnTotals[c] || 0).toString()),
     matrix.grandTotal.toString(),
   ];
@@ -493,6 +579,10 @@ export const exportDetailedTransactionsCSV = (
   creatorInfo?: { name: string; orgName: string; phone: string }
 ) => {
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+  const onlineTransactions = transactions.filter(t => t.paymentMethod === 'online');
+  const cashTransactions = transactions.filter(t => t.paymentMethod === 'cash');
+  const onlineTotal = onlineTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const cashTotal = cashTransactions.reduce((sum, t) => sum + t.amount, 0);
 
   // Meta info header with DD/MM/YYYY and audit details
   const metaRows = [
@@ -501,7 +591,9 @@ export const exportDetailedTransactionsCSV = (
     creatorInfo ? `"Creator / Organization:","${`${creatorInfo.name} (${creatorInfo.orgName || 'N/A'}, Phone: ${creatorInfo.phone || 'N/A'})`.replace(/"/g, '""')}"` : `""`,
     `"Date Range / Hun Chhung:","${(dateRangeText || 'All Dates').replace(/"/g, '""')}"`,
     `"Total Transactions:","${transactions.length}"`,
-    `"Total Collection Amount:","Rs. ${totalAmount.toLocaleString('en-IN')}"`,
+    `"⚡ Online Collection (UPI):","Rs. ${onlineTotal.toLocaleString('en-IN')} (${onlineTransactions.length} txns)"`,
+    `"💵 Cash Collection (Counter):","Rs. ${cashTotal.toLocaleString('en-IN')} (${cashTransactions.length} txns)"`,
+    `"Grand Total Collection:","Rs. ${totalAmount.toLocaleString('en-IN')}"`,
     `"Exported Date & Time:","${formatDateTimeDDMMYYYY(new Date().toISOString())}"`,
     `""`,
   ].filter(Boolean);
@@ -516,12 +608,15 @@ export const exportDetailedTransactionsCSV = (
     'Amount (INR)',
     'Payment Mode',
     'Status',
-    'Period / Subcategory Breakdown',
+    'Remarks / Note / Subcategory',
     'Reference / Tx Hash'
   ];
 
   const rows = transactions.map(t => {
     let breakdownStr = t.periodLabel || '';
+    if (t.remark && t.remark.trim()) {
+      breakdownStr = breakdownStr ? `${breakdownStr} | Note: ${t.remark.trim()}` : `Note: ${t.remark.trim()}`;
+    }
     if (t.subCategoryBreakdown && Object.keys(t.subCategoryBreakdown).length > 0) {
       const parts = Object.entries(t.subCategoryBreakdown).map(([k, v]) => `${k}: Rs.${v}`);
       breakdownStr = breakdownStr ? `${breakdownStr} | ${parts.join('; ')}` : parts.join('; ');
@@ -605,6 +700,10 @@ export const printTransactionsPDF = (
   options: PDFExportOptions = { includeMonthlyChart: true, includeSignatures: true }
 ) => {
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+  const onlineTransactions = transactions.filter(t => t.paymentMethod === 'online');
+  const cashTransactions = transactions.filter(t => t.paymentMethod === 'cash');
+  const onlineTotal = onlineTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const cashTotal = cashTransactions.reduce((sum, t) => sum + t.amount, 0);
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
@@ -618,6 +717,33 @@ export const printTransactionsPDF = (
     : (campaignName && campaignName !== 'All Campaigns' ? campaignName : 'BCM Ebenezer');
   const locationDisplay = creatorInfo?.address || 'Mizoram, India';
   const creatorDisplay = creatorInfo ? `${creatorInfo.name} (${creatorInfo.phone || ''})` : 'Authorized Official';
+
+  // Summary bar with breakdown of Online & Cash Collections
+  const collectionSummaryBarHtml = `
+    <div style="display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; page-break-inside: avoid;">
+      <div style="flex: 1; min-width: 150px; background: #eef2ff; border: 1px solid #c7d2fe; padding: 6px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-size: 8.5px; font-weight: 800; color: #4338ca; text-transform: uppercase;">⚡ Online (UPI)</div>
+          <div style="font-size: 13px; font-weight: 900; color: #1e1b4b;">₹${onlineTotal.toLocaleString('en-IN')}</div>
+        </div>
+        <span style="font-size: 9px; font-weight: bold; background: #c7d2fe; color: #312e81; padding: 2px 6px; border-radius: 4px;">${onlineTransactions.length} txns</span>
+      </div>
+      <div style="flex: 1; min-width: 150px; background: #fffbeb; border: 1px solid #fde68a; padding: 6px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-size: 8.5px; font-weight: 800; color: #b45309; text-transform: uppercase;">💵 Cash (Counter)</div>
+          <div style="font-size: 13px; font-weight: 900; color: #78350f;">₹${cashTotal.toLocaleString('en-IN')}</div>
+        </div>
+        <span style="font-size: 9px; font-weight: bold; background: #fde68a; color: #92400e; padding: 2px 6px; border-radius: 4px;">${cashTransactions.length} txns</span>
+      </div>
+      <div style="flex: 1.2; min-width: 180px; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 6px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-size: 8.5px; font-weight: 800; color: #15803d; text-transform: uppercase;">Grand Total Collection</div>
+          <div style="font-size: 14px; font-weight: 900; color: #14532d;">₹${totalAmount.toLocaleString('en-IN')}</div>
+        </div>
+        <span style="font-size: 9px; font-weight: bold; background: #bbf7d0; color: #166534; padding: 2px 6px; border-radius: 4px;">${transactions.length} Total</span>
+      </div>
+    </div>
+  `;
 
   // Build Monthly Chart HTML if requested
   let monthlyChartHtml = '';
@@ -901,15 +1027,23 @@ export const printTransactionsPDF = (
     }
   `;
 
-  // If Kumtluang Bawm, format matrix table: Sl No | Hming | Cat 1 | Cat 2 | ... | Total
+  // If Kumtluang Bawm, format matrix table: Sl No | Hming | Mode | Cat 1 | Cat 2 | ... | Total
   if (isKumtluang) {
     const matrix = buildKumtluangMatrix(transactions, sortOrder);
     const matrixHeaderThs = matrix.categories.map(c => `<th style="text-align: right; padding: 9px 12px; font-weight: 800;">${c.toUpperCase()}</th>`).join('');
     
-    const matrixRowsHtml = matrix.rows.map((r, idx) => `
+    const matrixRowsHtml = matrix.rows.map((r, idx) => {
+      const modeBadge = r.paymentMethodLabel === 'CASH'
+        ? `<span style="background: #fef3c7; color: #92400e; font-weight: bold; font-size: 8.5px; padding: 2px 6px; border-radius: 4px; border: 1px solid #fde68a;">💵 CASH</span>`
+        : r.paymentMethodLabel === 'ONLINE'
+        ? `<span style="background: #e0e7ff; color: #3730a3; font-weight: bold; font-size: 8.5px; padding: 2px 6px; border-radius: 4px; border: 1px solid #c7d2fe;">⚡ ONLINE</span>`
+        : `<span style="background: #f1f5f9; color: #0f172a; font-weight: bold; font-size: 8.5px; padding: 2px 6px; border-radius: 4px; border: 1px solid #cbd5e1;">⚡+💵 MIXED</span>`;
+
+      return `
       <tr style="background-color: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
         <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #64748b; text-align: center; width: 45px;">${idx + 1}</td>
         <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; font-weight: 800; color: #0f172a;">${r.donorName}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: center; width: 85px;">${modeBadge}</td>
         ${matrix.categories.map(c => `
           <td style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 700; color: ${r.categoryAmounts[c] > 0 ? '#0f172a' : '#94a3b8'};">
             ${r.categoryAmounts[c] > 0 ? `₹${r.categoryAmounts[c].toLocaleString('en-IN')}` : '-'}
@@ -919,7 +1053,8 @@ export const printTransactionsPDF = (
           ₹${r.total.toLocaleString('en-IN')}
         </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     const matrixFooterTds = matrix.categories.map(c => `
       <td style="text-align: right; padding: 11px 12px; font-weight: 900; color: #047857; border-top: 2px solid #0f172a; font-size: 12px;">
@@ -950,12 +1085,15 @@ export const printTransactionsPDF = (
             ${monthlyChartHtml}
           </div>
 
+          ${collectionSummaryBarHtml}
+
           <!-- Main Table -->
           <table>
             <thead>
               <tr>
                 <th style="width: 45px; text-align: center;">SL NO.</th>
                 <th style="padding: 10px 12px;">HMING (DONOR)</th>
+                <th style="width: 85px; text-align: center;">MODE</th>
                 ${matrixHeaderThs}
                 <th style="text-align: right; padding: 10px 12px; background: #312e81;">TOTAL (₹)</th>
               </tr>
@@ -965,7 +1103,7 @@ export const printTransactionsPDF = (
             </tbody>
             <tfoot>
               <tr class="total-row">
-                <td colspan="2" style="padding: 11px 12px; font-weight: 900; color: #1e1b4b; border-top: 2px solid #0f172a; font-size: 12px;">GRAND TOTAL</td>
+                <td colspan="3" style="padding: 11px 12px; font-weight: 900; color: #1e1b4b; border-top: 2px solid #0f172a; font-size: 12px;">GRAND TOTAL</td>
                 ${matrixFooterTds}
                 <td style="text-align: right; padding: 11px 12px; font-weight: 900; color: #047857; border-top: 2px solid #0f172a; font-size: 13px; background-color: #dcfce7;">
                   ₹${matrix.grandTotal.toLocaleString('en-IN')}
@@ -995,10 +1133,13 @@ export const printTransactionsPDF = (
   const rowsHtml = transactions.map((t, idx) => {
     const isCash = t.paymentMethod.toLowerCase().includes('cash');
     const paymentBadge = isCash
-      ? `<span style="background: #fef3c7; color: #92400e; font-weight: bold; font-size: 9px; padding: 2px 6px; border-radius: 4px; border: 1px solid #fde68a;">CASH (OFFLINE)</span>`
-      : `<span style="background: #dcfce7; color: #166534; font-weight: bold; font-size: 9px; padding: 2px 6px; border-radius: 4px; border: 1px solid #bbf7d0;">ONLINE (UPI)</span>`;
+      ? `<span style="background: #fef3c7; color: #92400e; font-weight: bold; font-size: 9px; padding: 2px 6px; border-radius: 4px; border: 1px solid #fde68a;">💵 CASH</span>`
+      : `<span style="background: #e0e7ff; color: #3730a3; font-weight: bold; font-size: 9px; padding: 2px 6px; border-radius: 4px; border: 1px solid #c7d2fe;">⚡ ONLINE</span>`;
 
     let remarks = t.periodLabel || '';
+    if (t.remark && t.remark.trim()) {
+      remarks = remarks ? `${remarks} • Note: ${t.remark.trim()}` : t.remark.trim();
+    }
     if (t.subCategoryBreakdown && Object.keys(t.subCategoryBreakdown).length > 0) {
       const parts = Object.entries(t.subCategoryBreakdown).map(([k, v]) => `${k}: ₹${v}`);
       remarks = remarks ? `${remarks} (${parts.join(', ')})` : parts.join(', ');
@@ -1040,14 +1181,16 @@ export const printTransactionsPDF = (
           ${monthlyChartHtml}
         </div>
 
+        ${collectionSummaryBarHtml}
+
         <table>
           <thead>
             <tr>
               <th style="width: 45px; text-align: center;">SL NO.</th>
               <th>DATE & TIME</th>
               <th>HMING (DONOR)</th>
-              <th style="text-align: center;">MODE</th>
-              <th>REMARKS / PERIOD</th>
+              <th style="text-align: center;">PAYMENT MODE</th>
+              <th>REMARKS / NOTE</th>
               <th>REFERENCE / HASH</th>
               <th style="text-align: right;">AMOUNT (₹)</th>
             </tr>
